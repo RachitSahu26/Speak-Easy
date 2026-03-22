@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SpeakEasy (Next.js + shadcn + Auth.js + Drizzle + Neon)
 
-## Getting Started
+This project contains:
 
-First, run the development server:
+- Landing page UI built with shadcn components
+- Credentials authentication using **NextAuth/Auth.js**
+- Database access via **Drizzle ORM** and **Neon Postgres**
+
+## 1) Setup environment variables
+
+Copy `.env.example` to `.env.local` and fill values:
+
+```bash
+cp .env.example .env.local
+```
+
+Required variables:
+
+```env
+DATABASE_URL=postgres://...
+NEXTAUTH_SECRET=your-random-long-secret
+NEXTAUTH_URL=http://localhost:3000
+NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
+```
+
+> Generate a secret quickly:
+>
+> ```bash
+> npx auth secret
+> ```
+
+## 2) Create database schema
+
+After setting `DATABASE_URL`, run:
+
+```bash
+npm run db:generate
+npm run db:push
+```
+
+This creates/syncs the `users` table in Neon.
+
+## 3) Run the app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 4) Socket.io local test
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This project includes a simple Socket.io matchmaking setup:
 
-## Learn More
+- Socket server: `socket-server.js` (runs on `http://localhost:3001`)
+- Client test page: `/socket-test`
 
-To learn more about Next.js, take a look at the following resources:
+When you run `npm run dev`, it starts both:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Next.js web server (`dev:web`)
+- Socket server (`dev:socket`)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+To verify:
 
-## Deploy on Vercel
+1. Open [http://localhost:3000/socket-test](http://localhost:3000/socket-test)
+2. Confirm status changes to **Connected**
+3. Open the same page in another browser/incognito window (2 users)
+4. Click **Find Match** in both windows
+5. Confirm both receive **Matched** state with a room ID and partner socket ID
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Event flow:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Client → `client:find-match`
+- Server queues users
+- When queue has 2 users, server emits `server:matched` to both users
+- Optional cancel: Client → `client:leave-queue`
+
+UI routes:
+
+- `/find-partner` → shadcn-based partner search page
+- `/call/[roomId]` → simple redirected call room placeholder after match
+
+Optional envs:
+
+- `NEXT_PUBLIC_SOCKET_URL` (client socket endpoint)
+- `SOCKET_PORT` (socket server port, defaults to `3001`)
+
+## Auth routes and pages
+
+- `GET/POST /api/auth/[...nextauth]` → NextAuth handler
+- `POST /api/auth/register` → register user with hashed password
+- `/sign-in` → credentials sign in page
+- `/sign-up` → account creation page
+- `/dashboard` → protected page (requires session)
+
+## Notes
+
+- Landing page CTA/buttons route to sign-in/sign-up.
+- Session strategy is JWT.
+- Passwords are hashed using `bcryptjs`.
