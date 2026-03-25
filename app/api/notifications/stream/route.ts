@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notifications } from "@/lib/db/schema";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -14,83 +14,72 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    // Set headers for SSE
-    const headers = new Headers();
-    headers.set('Content-Type', 'text/event-stream');
-    headers.set('Cache-Control', 'no-cache');
-    headers.set('Connection', 'keep-alive');
-    headers.set('Access-Control-Allow-Origin', '*');
-    headers.set('Access-Control-Allow-Headers', 'Cache-Control');
+    const headers = new Headers({
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
 
     const stream = new ReadableStream({
       start(controller) {
-        // Send initial data
-        sendEvent(controller, { type: 'init', data: { userId: session.user.id } });
+        let isClosed = false;
 
-        // Set up interval to check for new notifications
-        const interval = setInterval(async () => {
+        const safeClose = () => {
+          if (isClosed) return;
+          isClosed = true;
+          clearInterval(intervalId);
           try {
-            const [{ count }] = await db
-              .select({ count: db.$count(notifications.id) })
-              .from(notifications)
-              .where(and(
-                eq(notifications.userId, session.user.id),
-                eq(notifications.isRead, false)
-              ));
-
-            sendEvent(controller, { 
-              type: 'count_update', 
-              data: { count: Number(count), timestamp: new Date().toISOString() } 
-            });
-          } catch (error) {
-            console.error('SSE Error:', error);
             controller.close();
-          }
-        }, 10000); // Check every 10 seconds
-
-        // Clean up when client disconnects
-        const cleanup = () => {
-          clearInterval(interval);
-          controller.close();
+          } catch {}
         };
 
-        // Handle client disconnect
-        if (globalThis.AbortController) {
-          const ac = new AbortController();
-          ac.signal.addEventListener('abort', cleanup);
-        }
+        const send = (data: any) => {
+          if (isClosed) return;
+          controller.enqueue(
+            new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
+          );
+        };
 
-        // Initial count
-        (async () => {
+        // initial event
+        send({ type: "init", userId: session.user.id });
+
+        const intervalId = setInterval(async () => {
           try {
             const [{ count }] = await db
               .select({ count: db.$count(notifications.id) })
               .from(notifications)
-              .where(and(
-                eq(notifications.userId, session.user.id),
-                eq(notifications.isRead, false)
-              ));
+              .where(
+                and(
+                  eq(notifications.userId, session.user.id),
+                  eq(notifications.isRead, false)
+                )
+              );
 
-            sendEvent(controller, { 
-              type: 'count_update', 
-              data: { count: Number(count), timestamp: new Date().toISOString() } 
+            send({
+              type: "count_update",
+              count: Number(count),
+              at: Date.now(),
             });
-          } catch (error) {
-            console.error('Initial SSE Error:', error);
-            controller.close();
+          } catch (e) {
+            console.error("SSE interval error", e);
+            safeClose();
           }
-        })();
-      }
+        }, 10000);
+
+        // VERY IMPORTANT ✅
+        request.signal.addEventListener("abort", () => {
+          console.log("SSE client disconnected");
+          safeClose();
+        });
+      },
     });
 
     return new Response(stream, { headers });
-  } catch (error) {
-    console.error("SSE ERROR:", error);
-    return NextResponse.json({ message: "Failed to establish stream" }, { status: 500 });
+  } catch (e) {
+    console.error("SSE ERROR", e);
+    return NextResponse.json(
+      { message: "Failed to establish stream" },
+      { status: 500 }
+    );
   }
-}
-
-function sendEvent(controller: ReadableStreamDefaultController, data: any) {
-  const message = `data: ${JSON.stringify(data)}\n\n`;
-  controller.enqueue(new TextEncoder().encode(message));
 }

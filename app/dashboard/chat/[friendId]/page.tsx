@@ -204,49 +204,115 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-10">
-      <Card className="flex h-[75vh] flex-col">
-        <CardHeader className="border-b">
-          <CardTitle>Chat with {friendName}</CardTitle>
-        </CardHeader>
+    <main className="mx-auto flex min-h-screen w-full max-w-5xl px-4 py-8">
+    
+    <Card className="flex h-[80vh] w-full flex-col overflow-hidden border-none shadow-2xl bg-white/70 backdrop-blur-xl">
 
-        <CardContent className="flex flex-1 flex-col gap-4 overflow-hidden p-4">
-          <div className="flex-1 space-y-3 overflow-y-auto pr-1">
-            {messageList}
-            {isTyping ? <p className="text-xs text-muted-foreground">{friendName} is typing...</p> : null}
-            <div ref={bottomRef} />
+      {/* ⭐ Header */}
+      <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="flex items-center gap-3">
+          
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white font-semibold">
+            {friendName.charAt(0).toUpperCase()}
           </div>
 
-          <div className="flex items-center gap-2 border-t pt-3">
-            <input
-              value={input}
-              onChange={(event) => {
-                const value = event.target.value;
-                setInput(value);
-                socketRef.current?.emit("client:typing", {
-                  toUserId: friendId,
-                  fromUserId: session?.user?.id,
-                  isTyping: value.trim().length > 0,
-                });
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void sendMessage();
-                }
-              }}
-              className="h-11 w-full rounded-xl border px-3 text-sm"
-              placeholder="Type a message..."
-            />
-            <Button onClick={() => void sendMessage()} disabled={sending || !input.trim()}>
-              {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-              Send
-            </Button>
+          <div>
+            <CardTitle className="text-lg">{friendName}</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              {isTyping ? "Typing..." : "Online"}
+            </p>
           </div>
-        </CardContent>
-      </Card>
 
-      <Toaster toasts={toasts} onDismiss={dismiss} />
-    </main>
+        </div>
+      </CardHeader>
+
+      {/* ⭐ Messages */}
+      <CardContent className="flex flex-1 flex-col gap-4 overflow-hidden p-4 bg-gradient-to-b from-slate-50 to-white">
+        
+        <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+
+          {messages.map((message) => {
+            const mine = message.senderId === session?.user?.id;
+
+            return (
+              <div
+                key={message.id}
+                className={`flex ${mine ? "justify-end" : "justify-start"} animate-in fade-in`}
+              >
+                <div
+                  className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm shadow-sm transition-all
+                  ${
+                    mine
+                      ? "bg-blue-600 text-white rounded-br-sm"
+                      : "bg-white border rounded-bl-sm"
+                  }`}
+                >
+                  <p>{message.message}</p>
+
+                  <p className="mt-1 text-[10px] opacity-70 text-right">
+                    {new Date(message.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+
+          {isTyping && (
+            <p className="text-xs text-muted-foreground px-2">
+              {friendName} is typing...
+            </p>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* ⭐ Input */}
+        <div className="flex items-center gap-2 pt-3">
+
+          <input
+            value={input}
+            onChange={(event) => {
+              const value = event.target.value;
+              setInput(value);
+
+              socketRef.current?.emit("client:typing", {
+                toUserId: friendId,
+                fromUserId: session?.user?.id,
+                isTyping: value.trim().length > 0,
+              });
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void sendMessage();
+              }
+            }}
+            className="h-12 w-full rounded-full border px-5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            placeholder="Type your message..."
+          />
+
+          <Button
+            className="rounded-full h-12 w-12 p-0 cursor-pointer"
+            onClick={() => void sendMessage()}
+            disabled={sending || !input.trim()}
+          >
+            {sending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Send className="size-4" />
+            )}
+          </Button>
+
+        </div>
+
+      </CardContent>
+    </Card>
+
+    <Toaster toasts={toasts} onDismiss={dismiss} />
+
+  </main>
   );
 }

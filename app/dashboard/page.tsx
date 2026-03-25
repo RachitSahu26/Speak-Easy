@@ -2,12 +2,19 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { ArrowLeft, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 import { ProfileForm } from "@/components/dashboard/profile-form";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -37,104 +44,157 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.08),_transparent_32%),linear-gradient(to_bottom,_rgba(248,250,252,0.95),_rgba(241,245,249,0.9))] px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
-              <ShieldCheck className="size-3.5 text-primary" />
-              Secure member dashboard
+    <div className="relative min-h-screen bg-[#040b1f] text-white overflow-hidden px-6 py-16">
+
+      {/* GRID BACKGROUND */}
+      <div className="pointer-events-none absolute inset-0 opacity-40
+  bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),
+  linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)]
+  bg-[size:60px_60px]" />
+
+      {/* TOP LIGHT GLOW */}
+      <div className="pointer-events-none absolute left-1/2 top-20 h-[500px] w-[500px] 
+  -translate-x-1/2 rounded-full bg-purple-600/30 blur-[140px]" />
+
+      {/* BOTTOM RIGHT GLOW */}
+      <div className="pointer-events-none absolute right-0 bottom-0 h-[400px] w-[400px] 
+  translate-x-1/4 translate-y-1/4 rounded-full bg-cyan-500/20 blur-[120px]" />
+
+      {/* SUBTLE GRADIENT OVERLAY */}
+      <div className="pointer-events-none absolute inset-0 
+  bg-gradient-to-b from-transparent via-[#040b1f]/60 to-[#040b1f]" />
+
+
+
+      {/* header */}
+      <div className="relative mx-auto max-w-6xl space-y-12">
+
+        {/* HEADER */}
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+
+          <div className="space-y-4">
+
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1 text-xs text-white/60 backdrop-blur-xl">
+              <ShieldCheck className="size-4 text-cyan-400" />
+              Secure Dashboard
             </div>
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+
+            <div className="space-y-2">
+              <h1 className="text-4xl font-semibold tracking-tight bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-transparent">
                 Welcome back, {currentUser.name}
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-                Manage your profile details and personalize your dashboard experience.
+
+              <p className="max-w-xl text-white/60">
+                Manage your profile and prepare for your next global conversation.
               </p>
             </div>
+
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/dashboard/friends" className="inline-flex">
-              <Button variant="outline" size="lg">
+
+            <Link href="/dashboard/friends">
+              <Button className="border border-white/10 bg-white/5 hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-yellow-400/20 transition">
                 Friends
               </Button>
             </Link>
-            <Link href="/" className="inline-flex">
-              <Button variant="outline" size="lg">
-                <ArrowLeft className="size-4" />
-                Back to Home
+
+            <Link href="/">
+              <Button className="border border-white/10 bg-white/5 hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-yellow-400/20 transition">
+                <ArrowLeft className="size-4 mr-1" />
+                Home
               </Button>
             </Link>
+
             <SignOutButton />
+
           </div>
+
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-          <Card className="border-border/60 bg-background/90 py-0 shadow-xl shadow-slate-200/40 backdrop-blur-sm">
-            <CardHeader className="px-6 pt-6">
-              <CardTitle className="text-2xl">Profile Details</CardTitle>
-              <CardDescription>
-                Update your information so we can personalize recommendations and better matches.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-6 pb-6">
-              <ProfileForm
-                email={currentUser.email}
-                defaultValues={{
-                  fullName: currentUser.name,
-                  status:
-                    currentUser.status === "Student" ||
-                    currentUser.status === "Working Professional"
-                      ? currentUser.status
-                      : "Student",
-                  interestAreas: currentUser.interestAreas ?? "",
-                  location: currentUser.location ?? "",
-                  futureGoal: currentUser.futureGoal ?? "",
-                }}
-              />
-            </CardContent>
-          </Card>
+        {/* GLOW DIVIDER */}
+        <div className="h-px w-full bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
 
-          <Card className="border-border/60 bg-background/80 py-0 shadow-lg shadow-slate-200/30 backdrop-blur-sm">
-            <CardHeader className="px-6 pt-6">
-              <CardTitle className="text-lg">Profile Snapshot</CardTitle>
-              <CardDescription>
-                A quick overview of your account information.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 px-6 pb-6 text-sm text-slate-700">
-              <div className="rounded-xl border border-border/60 bg-muted/40 p-4">
-                <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                  <Mail className="size-3.5" />
-                  Account email
+        {/* GRID */}
+        <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
+
+          {/* PROFILE CARD */}
+          <div className="relative rounded-2xl p-[1px] bg-gradient-to-r from-purple-500/30 via-pink-500/30 to-yellow-400/30">
+
+            <Card className="rounded-2xl border border-white/10 bg-[#0b132b]/80 backdrop-blur-xl">
+
+              <CardHeader>
+                <CardTitle className="text-2xl font-semibold bg-gradient-to-r from-indigo-300 to-purple-400 bg-clip-text text-transparent">
+                  Profile Details
+                </CardTitle>
+
+
+                <CardDescription className="text-white/60">
+                  Update your information to improve matching.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent>
+                <ProfileForm
+                  email={currentUser.email}
+                  defaultValues={{
+                    fullName: currentUser.name,
+                    status:
+                      currentUser.status === "Student" ||
+                        currentUser.status === "Working Professional"
+                        ? currentUser.status
+                        : "Student",
+                    interestAreas: currentUser.interestAreas ?? "",
+                    location: currentUser.location ?? "",
+                    futureGoal: currentUser.futureGoal ?? "",
+                  }}
+                />
+              </CardContent>
+
+            </Card>
+
+          </div>
+
+          {/* SNAPSHOT CARD */}
+          <div className="relative rounded-2xl p-[1px] bg-gradient-to-b from-purple-500/30 to-transparent">
+
+            <Card className="rounded-2xl border border-white/10 bg-[#0b132b]/80 backdrop-blur-xl transition hover:-translate-y-1 hover:shadow-[0_25px_100px_-20px_rgba(124,58,237,0.45)]">
+
+              <CardHeader>
+                <CardTitle className="text-2xl font-semibold bg-gradient-to-r from-purple-400 via-pink-400 to-yellow-300 bg-clip-text text-transparent">
+                  Profile Snapshot
+                </CardTitle>
+
+                <CardDescription className="text-white/60">
+                  Quick overview of your account.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-5 text-sm">
+
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-purple-400/40">
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-white/40">Email</p>
+                  <p className="mt-1 font-medium">{currentUser.email}</p>
                 </div>
-                <p className="font-medium text-foreground">{currentUser.email}</p>
-              </div>
 
-              <div className="rounded-xl border border-border/60 bg-muted/40 p-4">
-                <p className="mb-1 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                  Current status
-                </p>
-                <p className="font-medium text-foreground">
-                  {currentUser.status ?? "Complete your profile to add this detail"}
-                </p>
-              </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-purple-400/40">
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-white/40">Status</p>
+                  <p className="mt-1 font-medium">{currentUser.status ?? "Add your status"}</p>
+                </div>
 
-              <div className="rounded-xl border border-border/60 bg-muted/40 p-4">
-                <p className="mb-1 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                  Interest areas
-                </p>
-                <p className="font-medium text-foreground">
-                  {currentUser.interestAreas ?? "Add topics you enjoy to improve recommendations"}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-       
-       
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-purple-400/40">
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-white/40">Interests</p>
+                  <p className="mt-1 font-medium">{currentUser.interestAreas ?? "Add interest areas"}</p>
+                </div>
+
+              </CardContent>
+
+            </Card>
+
+          </div>
+
         </div>
+
       </div>
     </div>
   );

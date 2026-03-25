@@ -110,9 +110,9 @@ export async function POST(request: Request) {
     await db.insert(notifications).values({
       userId: reviewedUserId,
       type: "feedback",
-      referenceId: newFeedback.id, // ✅ IMPORTANT
+      senderName: session.user.name,
+      comment,
     });
-
     // 🎉 Step 10: Success
     return NextResponse.json(
       { message: "Feedback submitted successfully" },

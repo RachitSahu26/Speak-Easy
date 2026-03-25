@@ -34,133 +34,141 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-8 lg:px-12">
-        
-        {/* HERO SECTION */}
-        <section className="overflow-hidden rounded-[2rem] border border-white/20 bg-gradient-to-b from-blue-900 via-blue-700 to-sky-500 shadow-[0_24px_80px_-40px_rgba(2,6,23,0.8)]">
-          
-          <div className="relative px-4 pb-10 pt-10 sm:px-10 sm:pt-14">
-            
-            {/* HEADING */}
-            <div className="mx-auto max-w-5xl text-center text-white">
-              <h1 className="text-balance text-4xl font-extrabold leading-tight sm:text-6xl">
-                Improve Your English
-                <br />
-                by Talking to the
-                <span className="ml-3 bg-gradient-to-r from-sky-100 to-cyan-300 bg-clip-text text-transparent">
-                  World
-                </span>
-              </h1>
+    <div className="min-h-screen bg-[#040b1f] text-white overflow-hidden">
 
-              <p className="mx-auto mt-5 max-w-3xl text-pretty text-lg text-blue-100 sm:text-3xl/9">
-                Find the best peer to practice English with, anytime, anywhere.
-              </p>
+      {/* GRID BACKGROUND */}
+      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:60px_60px]" />
 
-              <p className="mt-4 text-lg text-blue-50 sm:text-4xl/9">
-                Just click “Connect” to start a conversation!
-              </p>
-            </div>
+      {/* GLOW */}
+      <div className="fixed left-1/2 top-40 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-blue-600/30 blur-[160px]" />
 
-            {/* VISUAL CARDS */}
-            <div className="relative mt-10">
-              <div className="absolute left-[-2rem] top-12 hidden h-72 w-72 rounded-full bg-white/25 blur-3xl lg:block" />
-              <div className="absolute right-[-2rem] top-12 hidden h-72 w-72 rounded-full bg-white/25 blur-3xl lg:block" />
+      <main className="relative mx-auto max-w-7xl px-6 py-24 space-y-28">
 
-              <div className="grid gap-5 lg:grid-cols-[1fr_1.4fr_1fr] lg:items-end">
-                
-                {/* LEFT CARD */}
-                <Card className="mx-auto w-full max-w-xs rounded-3xl border-none bg-white/15 p-0 ring-1 ring-white/30 backdrop-blur-sm">
-                  <CardContent className="p-6">
-                    <div className="aspect-[3/4] rounded-2xl bg-gradient-to-br from-orange-100 to-blue-100" />
-                    <p className="mt-3 text-center text-sm font-semibold text-white/90">
-                      Conversation Partner
-                    </p>
-                  </CardContent>
-                </Card>
+        {/* ================= HERO ================= */}
+        <section className="text-center space-y-6">
 
-                {/* CENTER */}
-                <div className="relative mx-auto w-full max-w-3xl">
-                  <div className="mx-auto flex aspect-[16/10] w-full items-center justify-center rounded-[2rem] border border-white/30 bg-gradient-to-b from-emerald-200/90 via-cyan-100/90 to-blue-200/90 shadow-2xl">
-                    <div className="flex items-center gap-3 rounded-full border border-white/70 bg-white/80 px-5 py-2 text-sm font-semibold text-blue-700 shadow-md">
-                      <Sparkles className="size-4" />
-                      Global English Practice
-                    </div>
-                  </div>
+          <h1 className="text-5xl font-bold leading-tight md:text-7xl">
+            Improve Your English
+            <br />
+            <span className="bg-gradient-to-r from-sky-300 to-cyan-400 bg-clip-text text-transparent">
+              By Talking to the World
+            </span>
+          </h1>
 
-                  {bubbleItems.map((item) => (
-                    <Avatar
-                      key={item.initials}
-                      className={`absolute size-16 border-4 border-white bg-white shadow-xl sm:size-20 ${item.className}`}
-                    >
-                      <AvatarFallback className="bg-gradient-to-br from-sky-500 to-blue-700 text-sm font-bold text-white sm:text-base">
-                        {item.initials}
-                      </AvatarFallback>
-                    </Avatar>
-                  ))}
-                </div>
+          <p className="mx-auto max-w-2xl text-lg text-blue-100">
+            SpeakEasy connects you instantly with global peers to practice real conversations.
+          </p>
 
-                {/* RIGHT CARD */}
-                <Card className="mx-auto w-full max-w-xs rounded-3xl border-none bg-white/15 p-0 ring-1 ring-white/30 backdrop-blur-sm">
-                  <CardContent className="p-6">
-                    <div className="aspect-[3/4] rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100" />
-                    <p className="mt-3 text-center text-sm font-semibold text-white/90">
-                      Conversation Partner
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+          <button className="rounded-xl bg-blue-600 px-10 py-4 text-lg font-semibold shadow-xl hover:bg-blue-500">
+            Start Talking
+          </button>
 
-              {/* CTA BUTTON */}
-              <div className="mt-8 flex justify-center">
-                {session?.user ? (
-                  <Link
-                    href="/find-partner?autoStart=1"
-                    className={cn(
-                      buttonVariants({ size: "lg" }),
-                      "h-14 rounded-2xl bg-green-500 px-10 text-xl font-bold text-white hover:bg-green-400"
-                    )}
-                  >
-                    Connect & Start Talking
-                  </Link>
-                ) : (
-                  <div className="flex gap-4">
-                    <Link href="/sign-in" className={cn(buttonVariants({ size: "lg" }))}>
-                      Sign In
-                    </Link>
-                    <Link href="/sign-up" className={cn(buttonVariants({ size: "lg", variant: "outline" }))}>
-                      Sign Up
-                    </Link>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
         </section>
 
-        {/* FEATURES */}
-        <section className="mx-auto mt-10 max-w-5xl rounded-3xl bg-white p-4 shadow-lg sm:p-8">
-          <div className="grid gap-6 md:grid-cols-3 md:gap-4">
-            {featureItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  key={item.title}
-                  className="flex flex-col items-center justify-center gap-4 py-3 text-center md:not-last:border-r"
-                >
-                  <div className="flex size-16 items-center justify-center rounded-full bg-blue-600 text-white shadow-md">
-                    <Icon className="size-8" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-blue-700">
-                    {item.title}
-                  </h3>
-                </div>
-              );
-            })}
+        {/* ================= PRODUCT PREVIEW ================= */}
+       <section className="relative mx-auto mt-20 max-w-6xl">
+
+  {/* glow background */}
+  <div className="absolute left-1/2 top-10 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-cyan-500/20 blur-[120px]" />
+
+  {/* main glass panel */}
+  <div className="relative rounded-[32px] border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-[0_60px_120px_-20px_rgba(0,0,0,0.8)]">
+
+    {/* screen */}
+    <div className="relative aspect-video overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800">
+
+      {/* top fake navbar */}
+      <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
+        <div className="h-3 w-3 rounded-full bg-red-400" />
+        <div className="h-3 w-3 rounded-full bg-yellow-400" />
+        <div className="h-3 w-3 rounded-full bg-green-400" />
+      </div>
+
+      {/* fake content */}
+      <div className="flex h-full items-center justify-center text-blue-200 text-2xl font-semibold">
+        SpeakEasy Dashboard UI
+      </div>
+
+    </div>
+
+    {/* floating cards */}
+    <div className="absolute -left-8 top-10 hidden w-40 rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl lg:block">
+      <p className="text-xs text-white/70">Connected</p>
+      <p className="mt-1 text-lg font-bold">+124 Users</p>
+    </div>
+
+    <div className="absolute -right-8 bottom-10 hidden w-40 rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl lg:block">
+      <p className="text-xs text-white/70">Active Calls</p>
+      <p className="mt-1 text-lg font-bold">32</p>
+    </div>
+
+  </div>
+
+</section>
+
+        {/* ================= TRUST LOGOS ================= */}
+        <section className="text-center space-y-6">
+
+          <p className="text-blue-200">Trusted by learners worldwide</p>
+
+          <div className="flex flex-wrap justify-center gap-10 text-white/40 text-lg font-semibold">
+            <span>Google</span>
+            <span>Duolingo</span>
+            <span>Coursera</span>
+            <span>Udemy</span>
+            <span>edX</span>
           </div>
+
+        </section>
+
+        {/* ================= FEATURES ================= */}
+        <section className="space-y-10">
+
+          <h2 className="text-center text-3xl font-bold">
+            Powerful Features
+          </h2>
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+
+            {[
+              "Instant Matching",
+              "Voice & Video Chat",
+              "AI Feedback",
+              "Make Global Friends",
+            ].map((title) => (
+              <div
+                key={title}
+                className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl transition hover:-translate-y-2 hover:border-blue-400"
+              >
+                <div className="mb-4 h-12 w-12 rounded-xl bg-blue-500/20" />
+
+                <h3 className="font-semibold">{title}</h3>
+
+                <p className="mt-2 text-sm text-white/60">
+                  Practice English naturally with real people.
+                </p>
+              </div>
+            ))}
+
+          </div>
+
+        </section>
+
+        {/* ================= CTA ================= */}
+        <section className="text-center space-y-6">
+
+          <h2 className="text-4xl font-bold">
+            Ready to Speak Confidently?
+          </h2>
+
+          <button className="rounded-xl bg-gradient-to-r from-blue-500 to-cyan-400 px-10 py-4 font-semibold shadow-xl">
+            Get Started Now
+          </button>
+
         </section>
 
       </main>
+
     </div>
   );
 }

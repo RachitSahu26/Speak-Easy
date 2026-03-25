@@ -96,18 +96,20 @@ export const notifications = pgTable("notifications", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
 
-  type: text("type").notNull(), // "feedback" | "friend_request"
+  type: text("type").notNull(), // "friend_request" | "feedback"
 
-  referenceId: uuid("reference_id"), // feedback.id
+  senderName: varchar("sender_name", { length: 120 }).notNull(),
 
-  isRead: boolean("is_read").default(false),
+  comment: text("comment"),
+
+  status: varchar("status", { length: 32 }),
+
+  isRead: boolean("is_read").default(false).notNull(),
 
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
-
-
 
 export const friendRequests = pgTable(
   "friend_requests",
