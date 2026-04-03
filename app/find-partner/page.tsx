@@ -3,209 +3,186 @@
 import { Loader2, Search, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type ServerMatchedPayload = {
-  roomId: string;
-  partnerSocketId: string;
-  partnerUserId: string | null;
-  partnerName: string | null;
-};
-
-type ServerStatusPayload = {
-  message: string;
-};
-
-type ServerOnlineCountPayload = {
-  count: number;
-};
-
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://localhost:3005";
+const SOCKET_URL =
+  process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://localhost:3006";
 
 export default function FindPartnerPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { data: session, status: sessionStatus } = useSession();
+  const { data: session } = useSession();
+
   const socketRef = useRef<Socket | null>(null);
-  const autoStartAttemptedRef = useRef(false);
 
   const [connected, setConnected] = useState(false);
+  const [identified, setIdentified] = useState(false);
   const [searching, setSearching] = useState(false);
   const [onlineCount, setOnlineCount] = useState(0);
-  const [searchElapsedSeconds, setSearchElapsedSeconds] = useState(0);
-  const [statusMessage, setStatusMessage] = useState("Click \"Find Partner\" to start matchmaking.");
-
-  const autoStart = searchParams.get("autoStart") === "1";
-
-  const startSearching = () => {
-    if (!socketRef.current || !connected || searching || sessionStatus !== "authenticated") return;
-
-    setSearching(true);
-    setSearchElapsedSeconds(0);
-    setStatusMessage("Matching... 0 sec");
-    socketRef.current.emit("client:find-match");
-  };
+  const [timer, setTimer] = useState(0);
 
   useEffect(() => {
-    const socket = io(SOCKET_URL, {
-      transports: ["websocket", "polling"],
-    });
+    if (!session?.user?.id) return;
 
+    const socket = io(SOCKET_URL);
     socketRef.current = socket;
 
     socket.on("connect", () => {
       setConnected(true);
-      setStatusMessage("Connected. Ready to match.");
 
-      if (session?.user?.id) {
-        socket.emit("client:identify", {
-          userId: session.user.id,
-          name: session.user.name,
-        });
-      }
+      socket.emit("client:identify", {
+        userId: session.user.id,
+        name: session.user.name,
+      });
+    });
+
+    socket.on("server:identified", () => {
+      setIdentified(true);
     });
 
     socket.on("disconnect", () => {
       setConnected(false);
       setSearching(false);
-      setSearchElapsedSeconds(0);
-      setStatusMessage("Disconnected from server.");
+      setTimer(0);
+      setIdentified(false);
     });
 
-    socket.on("server:queued", () => {
-      setSearching(true);
-      setStatusMessage("Matching... 0 sec");
+    socket.on("server:online-count", (data) => {
+      setOnlineCount(data.count);
     });
 
-    socket.on("server:online-count", (payload: ServerOnlineCountPayload) => {
-      setOnlineCount(payload.count);
-    });
-
-    socket.on("server:status", (payload: ServerStatusPayload) => {
-      setStatusMessage(payload.message);
-    });
-
-    socket.on("server:queue-left", (payload: ServerStatusPayload) => {
-      setSearching(false);
-      setSearchElapsedSeconds(0);
-      setStatusMessage(payload.message);
-    });
-
-    socket.on("server:matched", (payload: ServerMatchedPayload) => {
-      setSearching(false);
-      setSearchElapsedSeconds(0);
-      setStatusMessage("Partner found! Joining room...");
-
-
-
-      
-      router.push(
-        `/call/${payload.roomId}?partner=${payload.partnerSocketId}&me=${socketRef.current?.id}&partnerUserId=${payload.partnerUserId ?? ""}&partnerName=${encodeURIComponent(payload.partnerName ?? "")}`
-      );
+    socket.on("server:matched", (data: { roomId: string }) => {
+      router.push(`/call/${data.roomId}`);
     });
 
     return () => {
-      if (socket.connected) {
-        socket.emit("client:leave-queue");
-      }
       socket.disconnect();
-      socketRef.current = null;
     };
-  }, [router, session?.user?.id]);
+  }, [session?.user?.id, router]);
 
   useEffect(() => {
     if (!searching) return;
 
-    const intervalId = window.setInterval(() => {
-      setSearchElapsedSeconds((current) => current + 1);
+    const id = setInterval(() => {
+      setTimer((prev) => prev + 1);
     }, 1000);
 
-    return () => window.clearInterval(intervalId);
+    return () => clearInterval(id);
   }, [searching]);
 
-  useEffect(() => {
-    if (!searching) return;
+  const startSearch = () => {
+    if (!socketRef.current || !connected || !identified) return;
 
-    setStatusMessage(
-      searchElapsedSeconds < 2
-        ? `Matching... ${searchElapsedSeconds} sec`
-        : `Still searching... ${searchElapsedSeconds} sec`,
-    );
-  }, [searchElapsedSeconds, searching]);
+    setSearching(true);
+    setTimer(0);
+    socketRef.current.emit("client:find-match");
+  };
 
-  useEffect(() => {
-    if (!connected || !socketRef.current || !session?.user?.id) return;
-
-    socketRef.current.emit("client:identify", {
-      userId: session.user.id,
-      name: session.user.name,
-    });
-  }, [connected, session?.user?.id]);
-
-  useEffect(() => {
-    if (!autoStart || !connected || sessionStatus !== "authenticated" || autoStartAttemptedRef.current) {
-      return;
-    }
-
-    autoStartAttemptedRef.current = true;
-    startSearching();
-  }, [autoStart, connected, sessionStatus]);
-
-  const onCancelSearch = () => {
-    if (!socketRef.current || !connected) return;
-
-    socketRef.current.emit("client:leave-queue");
+  const cancelSearch = () => {
+    socketRef.current?.emit("client:leave-queue");
+    setSearching(false);
+    setTimer(0);
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl items-center px-4 py-10">
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-2xl">
-            <Users className="size-5" /> Find Conversation Partner
-          </CardTitle>
-          <CardDescription>Match with another learner in real-time using Socket.io.</CardDescription>
-        </CardHeader>
+  <div className="relative min-h-screen bg-[#040b1f] text-white overflow-hidden px-6 py-16">
 
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Connection: <span className="font-medium text-foreground">{connected ? "Connected" : "Not connected"}</span>
+  {/* GRID BACKGROUND */}
+  <div className="pointer-events-none absolute inset-0 opacity-40
+    bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),
+    linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)]
+    bg-[size:60px_60px]" />
+
+  {/* TOP GLOW */}
+  <div className="pointer-events-none absolute left-1/2 top-20 h-[500px] w-[500px] 
+    -translate-x-1/2 rounded-full bg-purple-600/30 blur-[140px]" />
+
+  {/* BOTTOM GLOW */}
+  <div className="pointer-events-none absolute right-0 bottom-0 h-[400px] w-[400px] 
+    translate-x-1/4 translate-y-1/4 rounded-full bg-cyan-500/20 blur-[120px]" />
+
+  {/* OVERLAY */}
+  <div className="pointer-events-none absolute inset-0 
+    bg-gradient-to-b from-transparent via-[#040b1f]/60 to-[#040b1f]" />
+
+  {/* CONTENT */}
+  <div className="relative mx-auto max-w-xl space-y-10 text-center min-h-[500px]">
+
+    {/* HEADER */}
+    <div className="space-y-3">
+      <h1 className="text-3xl font-semibold bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-transparent">
+        Find Your Partner
+      </h1>
+      <p className="text-white/60">
+        Connect with someone new and start a meaningful conversation.
+      </p>
+    </div>
+
+    {/* CARD */}
+    <div className="relative rounded-2xl p-[1px] bg-gradient-to-r from-purple-500/30 via-pink-500/30 to-yellow-400/30">
+
+      <div className="rounded-2xl border border-white/10 bg-[#0b132b]/80 backdrop-blur-xl p-8 space-y-6">
+
+        {/* STATUS */}
+        <div className="flex justify-between text-sm text-white/70">
+          <p>
+            Status:{" "}
+            <span className={connected ? "text-green-400" : "text-red-400"}>
+              {connected ? "Connected" : "Disconnected"}
+            </span>
           </p>
 
-          <p className="text-sm text-muted-foreground">
-            Members online: <span className="font-medium text-foreground">{onlineCount}</span>
-          </p>
+          <p>Online: {onlineCount}</p>
+        </div>
 
-          {searching ? (
-            <p className="text-sm text-muted-foreground">
-              Match timer: <span className="font-medium text-foreground">{searchElapsedSeconds} sec</span>
+        {/* SEARCH STATE */}
+        {searching && (
+          <div className="text-center text-white/60">
+            <p className="animate-pulse">
+              🔍 Searching for partner...
             </p>
-          ) : null}
-
-          <div className="rounded-lg border bg-muted/40 p-4 text-sm">{statusMessage}</div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={startSearching}
-              disabled={!connected || searching || sessionStatus !== "authenticated"}
-              size="lg"
-            >
-              {searching ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
-              {searching ? "Searching..." : "Connect & Find Partner"}
-            </Button>
-
-            {searching ? (
-              <Button variant="outline" size="lg" onClick={onCancelSearch}>
-                Cancel
-              </Button>
-            ) : null}
+            <p className="text-xs mt-1">
+              Time: {timer}s
+            </p>
           </div>
-        </CardContent>
-      </Card>
-    </main>
+        )}
+
+        {/* ACTION BUTTON */}
+        <Button
+          onClick={startSearch}
+          disabled={!connected || !identified || searching}
+          className=" rounded-xl bg-gradient-to-r from-purple-500 to-cyan-500 py-2 font-medium hover:opacity-90 transition"
+        >
+          {searching ? (
+            <>
+              <Loader2 className="animate-spin mr-2 size-4" />
+              Searching...
+            </>
+          ) : (
+            <>
+              <Search className="mr-2 size-4" />
+              Find Partner
+            </>
+          )}
+        </Button>
+
+        {/* CANCEL BUTTON */}
+        {searching && (
+          <Button
+            onClick={cancelSearch}
+            className="w-full rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition"
+          >
+            Cancel
+          </Button>
+        )}
+
+      </div>
+    </div>
+
+  </div>
+</div>
   );
 }

@@ -1,351 +1,221 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, Loader2, Star } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useMemo, useState } from "react";
+import { Star } from "lucide-react";
 
-import { Toaster } from "@/components/ui/toast";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/lib/client/use-toast";
-import {
-  feedbackSchema,
-  feedbackTagValues,
-  type FeedbackInput,
-} from "@/lib/validations/post-call";
-
-type FriendState =
-  | "none"
-  | "pending_outgoing"
-  | "pending_incoming"
-  | "accepted"
-  | "rejected";
-
-type FriendStatusResponse = {
-  state: FriendState;
-  canRespond: boolean;
-  incomingRequestId: string | null;
-};
+const feedbackTags = ["Friendly", "Helpful", "Respectful", "Good Listener"];
 
 export default function PostCallPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const { toast, toasts, dismiss } = useToast();
+  const params = useSearchParams();
 
-  const callSessionId = searchParams.get("callSessionId") ?? "";
-  const partnerId = searchParams.get("partnerId") ?? "";
-  const partnerName = decodeURIComponent(searchParams.get("partnerName") ?? "Partner");
+  const callSessionId = params.get("callSessionId") ?? "";
+  const partnerId = params.get("partnerId") ?? "";
+  const partnerName = decodeURIComponent(
+    params.get("partnerName") ?? "Partner"
+  );
 
-  const [friendState, setFriendState] = useState<FriendStatusResponse | null>(null);
-  const [requestLoading, setRequestLoading] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
 
-  const form = useForm<FeedbackInput>({
-    resolver: zodResolver(feedbackSchema),
-    defaultValues: {
-      callSessionId,
-      reviewedUserId: partnerId,
-      rating: 5,
-      comment: "",
-      tags: [],
-    },
-  });
+  const [friendState, setFriendState] = useState("none");
+  const [loading, setLoading] = useState(false);
 
-  const {
-    handleSubmit,
-    setValue,
-    watch,
-    register,
-    formState: { isSubmitting, errors, isSubmitSuccessful },
-  } = form;
+  // ✅ Toggle tags (clean)
+  const toggleTag = (tag: string) => {
+    setTags((prev) =>
+      prev.includes(tag)
+        ? prev.filter((t) => t !== tag)
+        : [...prev, tag]
+    );
+  };
 
-  const selectedTags = watch("tags") ?? [];
-  const rating = watch("rating") ?? 5;
+  // ================= FEEDBACK SUBMIT =================
+  const handleSubmit = async () => {
+    if (loading) return;
 
-  useEffect(() => {
-    setValue("callSessionId", callSessionId);
-    setValue("reviewedUserId", partnerId);
-  }, [callSessionId, partnerId, setValue]);
+    if (!callSessionId || !partnerId) {
+      alert("Invalid session");
+      return;
+    }
 
-  useEffect(() => {
-    if (!partnerId) return;
+    setLoading(true);
 
-    const fetchFriendStatus = async () => {
-      const response = await fetch(`/api/friend-requests?peerId=${partnerId}`);
-      if (!response.ok) return;
-      const result = (await response.json()) as FriendStatusResponse;
-      setFriendState(result);
-    };
-
-    void fetchFriendStatus();
-  }, [partnerId]);
-
-  const onSubmit = async (values: FeedbackInput) => {
-    const response = await fetch("/api/feedback", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(values),
-    });
-
-    const result = (await response.json()) as { message?: string };
-
-    if (!response.ok) {
-      toast({
-        title: result.message ?? "Unable to submit feedback",
-        variant: "error",
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          callSessionId,
+          reviewedUserId: partnerId,
+          rating: Number(rating),
+          comment,
+          tags,
+        }),
       });
-      return;
-    }
 
-    toast({
-      title: result.message ?? "Feedback submitted",
-      variant: "success",
-    });
+      const data = await res.json();
+
+      // 🔥 Handle duplicate (409)
+      if (res.status === 409) {
+        alert("You already submitted feedback for this call.");
+        router.push("/dashboard");
+        return;
+      }
+
+      if (!res.ok) {
+        alert(data.message || "Something went wrong");
+        return;
+      }
+
+      alert("✅ Feedback submitted!");
+      router.push("/dashboard");
+
+    } catch (err) {
+      console.error("❌ ERROR:", err);
+      alert("Something went wrong");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const onToggleTag = (tag: (typeof feedbackTagValues)[number]) => {
-    const current = selectedTags;
-    if (current.includes(tag)) {
-      setValue(
-        "tags",
-        current.filter((item) => item !== tag),
-      );
-      return;
-    }
-
-    setValue("tags", [...current, tag]);
-  };
-
+  // ================= FRIEND REQUEST =================
   const sendRequest = async () => {
-    if (!partnerId) return;
+    if (!partnerId || loading) return;
 
-    setRequestLoading(true);
-    const response = await fetch("/api/friend-requests", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        receiverId: partnerId,
-      }),
-    });
+    setLoading(true);
 
-    const result = (await response.json()) as {
-      message?: string;
-      state?: FriendState;
-    };
-    setRequestLoading(false);
-
-    if (!response.ok) {
-      toast({
-        title: result.message ?? "Failed to send request",
-        variant: "error",
+    try {
+      const res = await fetch("/api/friend-requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ receiverId: partnerId }),
       });
-      return;
+
+      if (res.ok) {
+        setFriendState("pending");
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-
-    toast({
-      title: result.message ?? "Request updated",
-      variant: "success",
-    });
-
-    setFriendState((current) => ({
-      state: result.state ?? current?.state ?? "pending_outgoing",
-      canRespond: false,
-      incomingRequestId: null,
-    }));
   };
 
-  const respondToRequest = async (action: "accepted" | "rejected") => {
-    if (!friendState?.incomingRequestId) return;
-
-    setRequestLoading(true);
-    const response = await fetch(`/api/friend-requests/${friendState.incomingRequestId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ action }),
-    });
-
-    const result = (await response.json()) as { message?: string };
-    setRequestLoading(false);
-
-    if (!response.ok) {
-      toast({
-        title: result.message ?? "Failed to update request",
-        variant: "error",
-      });
-      return;
-    }
-
-    toast({
-      title: result.message ?? "Request updated",
-      variant: "success",
-    });
-
-    setFriendState({
-      state: action,
-      canRespond: false,
-      incomingRequestId: null,
-    });
-  };
-
-  const friendStatusLabel = useMemo(() => {
-    if (!friendState) return "Checking friend status...";
-    switch (friendState.state) {
+  const friendLabel = useMemo(() => {
+    switch (friendState) {
+      case "pending":
+        return "Request Sent";
       case "accepted":
         return "Already Friends";
-      case "pending_outgoing":
-        return "Request Sent";
-      case "pending_incoming":
-        return "Incoming Friend Request";
-      case "rejected":
-        return "Request Rejected";
       default:
-        return "Not connected yet";
+        return "Not connected";
     }
   }, [friendState]);
 
+  // ================= UI =================
+
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 px-4 py-10">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Call Ended</CardTitle>
-          <CardDescription>
-            Share feedback for <span className="font-semibold text-foreground">{partnerName}</span> and connect as friends.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+    <div className="min-h-screen bg-[#040b1f] text-white px-6 py-16">
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Call Feedback</CardTitle>
-            <CardDescription>Rate your conversation experience.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
-              <input type="hidden" {...register("callSessionId")} />
-              <input type="hidden" {...register("reviewedUserId")} />
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Rating</p>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setValue("rating", value, { shouldValidate: true })}
-                      className="rounded-md p-1"
-                    >
-                      <Star
-                        className={`size-6 ${value <= rating ? "fill-yellow-400 text-yellow-400" : "text-slate-300"}`}
-                      />
-                    </button>
-                  ))}
-                </div>
-                {errors.rating ? <p className="text-sm text-destructive">{errors.rating.message}</p> : null}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">How was this person?</label>
-                <textarea
-                  {...register("comment")}
-                  placeholder="Share your experience..."
-                  className="min-h-28 w-full rounded-xl border px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Tags</p>
-                <div className="flex flex-wrap gap-2">
-                  {feedbackTagValues.map((tag) => {
-                    const active = selectedTags.includes(tag);
-                    return (
-                      <Button
-                        key={tag}
-                        type="button"
-                        variant={active ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => onToggleTag(tag)}
-                      >
-                        {active ? <Check className="size-3.5" /> : null}
-                        {tag}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <Button type="submit" disabled={isSubmitting || !callSessionId || !partnerId}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  "Submit Feedback"
-                )}
-              </Button>
-
-              {isSubmitSuccessful ? (
-                <p className="text-sm text-emerald-600">Thanks! Your feedback has been recorded.</p>
-              ) : null}
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Friend Request</CardTitle>
-            <CardDescription>{friendStatusLabel}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {friendState?.state === "pending_incoming" ? (
-              <div className="flex gap-2">
-                <Button disabled={requestLoading} onClick={() => void respondToRequest("accepted")}>
-                  Accept
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={requestLoading}
-                  onClick={() => void respondToRequest("rejected")}
-                >
-                  Reject
-                </Button>
-              </div>
-            ) : (
-              <Button
-                onClick={() => void sendRequest()}
-                disabled={
-                  requestLoading ||
-                  friendState?.state === "accepted" ||
-                  friendState?.state === "pending_outgoing"
-                }
-              >
-                {requestLoading ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  "Send Friend Request"
-                )}
-              </Button>
-            )}
-
-            <Button variant="outline" onClick={() => router.push("/dashboard/friends")}>
-              Go to Friends
-            </Button>
-          </CardContent>
-        </Card>
+      {/* HEADER */}
+      <div className="text-center space-y-3 mb-10">
+        <h1 className="text-3xl font-semibold">Call Feedback</h1>
+        <p className="text-white/60">
+          Share your experience with{" "}
+          <span className="text-white font-medium">{partnerName}</span>
+        </p>
       </div>
 
-      <Toaster toasts={toasts} onDismiss={dismiss} />
-    </main>
+      <div className="grid gap-8 lg:grid-cols-2 max-w-5xl mx-auto">
+
+        {/* FEEDBACK CARD */}
+        <div className="bg-white/5 border border-white/10 p-6 rounded-2xl space-y-5">
+
+          {/* Rating */}
+          <div>
+            <p className="text-sm text-white/60 mb-2">Rating</p>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((num) => (
+                <button key={num} onClick={() => setRating(num)}>
+                  <Star
+                    className={`size-6 ${
+                      num <= rating
+                        ? "fill-yellow-400 text-yellow-400"
+                        : "text-white/30"
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Comment */}
+          <textarea
+            placeholder="Write your feedback..."
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            className="w-full min-h-24 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm"
+          />
+
+          {/* Tags */}
+          <div className="flex flex-wrap gap-2">
+            {feedbackTags.map((tag) => {
+              const active = tags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={`px-3 py-1 rounded-lg border text-sm ${
+                    active
+                      ? "bg-purple-500 text-white"
+                      : "bg-white/5 border-white/10 text-white/70"
+                  }`}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Submit */}
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full rounded-xl bg-gradient-to-r from-purple-500 to-cyan-500 py-2"
+          >
+            {loading ? "Submitting..." : "Submit Feedback"}
+          </button>
+        </div>
+
+        {/* FRIEND CARD */}
+        <div className="bg-white/5 border border-white/10 p-6 rounded-2xl space-y-4">
+          <h2 className="text-xl font-semibold">Friend Request</h2>
+
+          <p className="text-white/60 text-sm">{friendLabel}</p>
+
+          <button
+            onClick={sendRequest}
+            disabled={loading || friendState === "pending"}
+            className="w-full rounded-xl border border-white/10 py-2"
+          >
+            {loading ? "Sending..." : "Send Friend Request"}
+          </button>
+
+          <button
+            onClick={() => router.push("/dashboard/friends")}
+            className="w-full rounded-xl border border-white/10 py-2"
+          >
+            Go to Friends
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

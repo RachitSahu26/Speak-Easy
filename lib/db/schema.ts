@@ -101,6 +101,7 @@ export const notifications = pgTable("notifications", {
   senderName: varchar("sender_name", { length: 120 }).notNull(),
 
   comment: text("comment"),
+referenceId: uuid("reference_id"),
 
   status: varchar("status", { length: 32 }),
 
@@ -110,6 +111,31 @@ export const notifications = pgTable("notifications", {
     .defaultNow()
     .notNull(),
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export const friendRequests = pgTable(
   "friend_requests",

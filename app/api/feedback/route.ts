@@ -11,27 +11,27 @@ export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
 
-    // 🔐 Step 1: Check login
     if (!session?.user?.id) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    // 📥 Step 2: Get body
-    const json = await request.json();
-    const parsed = feedbackSchema.safeParse(json);
+    const body = await request.json();
+    console.log("checking that data is coming to api page or not",body)
+    const parsed = feedbackSchema.safeParse(body);
 
-    // ❌ Step 3: Validate input
     if (!parsed.success) {
       return NextResponse.json(
-        { message: parsed.error.issues[0]?.message ?? "Invalid payload" },
+        { message: parsed.error.issues[0]?.message || "Invalid payload" },
         { status: 400 }
       );
     }
 
-    const { callSessionId, reviewedUserId, rating, comment, tags } = parsed.data;
+    const { callSessionId, reviewedUserId, rating, comment, tags } =
+      parsed.data;
+
     const reviewerId = session.user.id;
 
-    // ❌ Step 4: Prevent self-review
+    // 🚫 Prevent self-review
     if (reviewerId === reviewedUserId) {
       return NextResponse.json(
         { message: "You cannot review yourself" },
@@ -39,13 +39,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // 🔍 Step 5: Check call session exists
+    // 🔍 Get call session
     const [callSession] = await db
-      .select({
-        id: callSessions.id,
-        userAId: callSessions.userAId,
-        userBId: callSessions.userBId,
-      })
+      .select()
       .from(callSessions)
       .where(eq(callSessions.id, callSessionId))
       .limit(1);
@@ -57,23 +53,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // 🔐 Step 6: Validate participants
-    const isParticipant =
-      callSession.userAId === reviewerId ||
-      callSession.userBId === reviewerId;
+    // 🔐 Validate both users belong to this call
+    const users = [callSession.userAId, callSession.userBId];
 
-    const reviewedIsParticipant =
-      callSession.userAId === reviewedUserId ||
-      callSession.userBId === reviewedUserId;
-
-    if (!isParticipant || !reviewedIsParticipant) {
+    if (!users.includes(reviewerId) || !users.includes(reviewedUserId)) {
       return NextResponse.json(
-        { message: "Invalid call session participants" },
+        { message: "Invalid participants" },
         { status: 403 }
       );
     }
 
-    // 🚫 Step 7: Prevent duplicate feedback
+    // 🚫 Prevent duplicate feedback
     const [existing] = await db
       .select({ id: feedbacks.id })
       .from(feedbacks)
@@ -93,7 +83,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // ✅ Step 8: Insert feedback + get ID
+    // ✅ Insert feedback
     const [newFeedback] = await db
       .insert(feedbacks)
       .values({
@@ -101,19 +91,20 @@ export async function POST(request: Request) {
         reviewerId,
         reviewedUserId,
         rating,
-        comment: comment?.trim() ? comment.trim() : null,
+        comment: comment?.trim() || null,
         tags,
       })
       .returning({ id: feedbacks.id });
 
-    // 🔔 Step 9: Create notification (FIXED)
+    // 🔔 Notification
     await db.insert(notifications).values({
       userId: reviewedUserId,
       type: "feedback",
       senderName: session.user.name,
       comment,
+      referenceId: newFeedback.id,
     });
-    // 🎉 Step 10: Success
+
     return NextResponse.json(
       { message: "Feedback submitted successfully" },
       { status: 201 }
@@ -123,55 +114,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       { message: "Failed to submit feedback" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET(request: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json(
-        { message: "userId is required" },
-        { status: 400 }
-      );
-    }
-
-    // 📊 Get ratings
-    const rows = await db
-      .select({
-        rating: feedbacks.rating,
-      })
-      .from(feedbacks)
-      .where(eq(feedbacks.reviewedUserId, userId));
-
-    const total = rows.length;
-    const average =
-      total === 0
-        ? 0
-        : rows.reduce((sum, row) => sum + row.rating, 0) / total;
-
-    return NextResponse.json(
-      {
-        total,
-        averageRating: Number(average.toFixed(2)),
-      },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error("GET FEEDBACK SUMMARY ERROR:", error);
-
-    return NextResponse.json(
-      { message: "Failed to fetch feedback summary" },
       { status: 500 }
     );
   }

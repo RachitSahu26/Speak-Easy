@@ -2,20 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { Bell, Clock } from "lucide-react";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-type Notification = {
+
+
+
+
+type NotificationType = {
   id: string;
-  type: "friend_request" | "feedback";
+  type: "feedback" | "friend_request";
   isRead: boolean;
   createdAt: string;
   senderName: string;
   comment?: string;
+  referenceId?: string;
+
+  rating?: number;
+  tag?: string[];
 };
-
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [count, setCount] = useState(0)
   useEffect(() => {
     fetchNotifications();
   }, []);
@@ -56,6 +64,39 @@ export default function NotificationsPage() {
     }
   };
 
+
+
+  const fetchCount = async () => {
+    const res = await fetch("/api/notifications/count");
+    const data = await res.json();
+    setCount(data.count);
+  };
+
+
+  const handleClick = async (n: NotificationType) => {
+    try {
+      // ✅ mark as read in DB
+      await fetch(`/api/notifications/${n.id}/read`, {
+        method: "PATCH",
+      });
+
+      // ✅ update UI instantly
+      setNotifications((prev) =>
+        prev.map((item) =>
+          item.id === n.id ? { ...item, isRead: true } : item
+        )
+      );
+
+      // ✅ ALWAYS refetch (BEST WAY)
+      await fetchCount();
+
+      // 👉 optional navigation
+      // router.push(`/feedback/${n.referenceId}`);
+    } catch (err) {
+      console.log("CLICK ERROR:", err);
+    }
+  };
+
   const formatTime = (date: string) => {
     const diff = Date.now() - new Date(date).getTime();
     const minutes = Math.floor(diff / 60000);
@@ -69,64 +110,121 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-8">
+   <div className="relative min-h-screen bg-[#040b1f] text-white px-6 py-16 overflow-hidden">
 
-      <h1 className="text-2xl font-bold mb-6">Notifications</h1>
+  {/* GRID */}
+  <div className="pointer-events-none absolute inset-0 opacity-40
+    bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),
+    linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)]
+    bg-[size:60px_60px]" />
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : notifications.length === 0 ? (
-        <div className="text-center text-gray-500">
-          <Bell className="mx-auto mb-2" />
-          No notifications yet
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {notifications.map(n => (
-            <div
-              key={n.id}
-              className={`p-4 rounded-lg border ${
-                n.isRead
-                  ? "bg-white border-gray-200"
-                  : "bg-blue-50 border-blue-200"
-              }`}
-            >
-              <div className="flex justify-between items-start">
+  {/* TOP PURPLE GLOW */}
+  <div className="pointer-events-none absolute left-1/2 top-20 h-[520px] w-[520px] 
+    -translate-x-1/2 rounded-full bg-purple-600/30 blur-[150px]" />
 
-                <div>
-                  <p className="font-medium">
-                    {n.senderName}{" "}
-                    {n.type === "friend_request"
-                      ? "sent you a friend request"
-                      : "left you feedback"}
+  {/* RIGHT CYAN GLOW */}
+  <div className="pointer-events-none absolute right-0 bottom-0 h-[420px] w-[420px] 
+    translate-x-1/4 translate-y-1/4 rounded-full bg-cyan-500/20 blur-[120px]" />
+
+  {/* OVERLAY */}
+  <div className="pointer-events-none absolute inset-0 
+    bg-gradient-to-b from-transparent via-[#040b1f]/60 to-[#040b1f]" />
+
+  <main className="relative mx-auto w-full max-w-4xl space-y-8">
+
+    {/* HEADER */}
+    <Card className="border border-white/10 bg-white/5 backdrop-blur-xl">
+      <CardHeader>
+        <CardTitle className="text-3xl text-white">
+          Notifications
+        </CardTitle>
+        <CardDescription className="text-white/60">
+          Your recent activity and updates.
+        </CardDescription>
+      </CardHeader>
+    </Card>
+
+    {/* CONTENT */}
+    {loading ? (
+      <p className="text-white/60">Loading...</p>
+    ) : notifications.length === 0 ? (
+      <div className="text-center text-white/50">
+        No notifications yet
+      </div>
+    ) : (
+      <div className="space-y-4">
+
+        {notifications.map((n) => (
+          <div
+            key={n.id}
+            onClick={() => handleClick(n)}
+            className={`cursor-pointer rounded-xl border p-4 transition-all backdrop-blur-lg
+              
+              ${n.isRead
+                ? "bg-white/5 border-white/10 hover:bg-white/10"
+                : "bg-blue-500/10 border-blue-400/30 hover:bg-blue-500/20"}
+            `}
+          >
+            <div className="flex justify-between items-start gap-4">
+
+              {/* LEFT */}
+              <div className="space-y-2">
+
+                <p className="font-medium">
+                  <span className="font-semibold text-white">
+                    {n.senderName}
+                  </span>{" "}
+                  {n.type === "friend_request"
+                    ? "sent you a friend request"
+                    : "left you feedback"}
+                </p>
+
+                {n.comment && (
+                  <p className="text-sm text-white/70">
+                    "{n.comment}"
                   </p>
-
-                  {n.comment && (
-                    <p className="text-sm text-gray-600 mt-1">
-                      "{n.comment}"
-                    </p>
-                  )}
-
-                  <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                    <Clock size={12} />
-                    {formatTime(n.createdAt)}
-                  </p>
-                </div>
-
-                {!n.isRead && (
-                  <button
-                    onClick={() => markAsRead(n.id)}
-                    className="text-xs text-blue-600"
-                  >
-                    Mark read
-                  </button>
                 )}
 
+                {/* ⭐ RATING */}
+                {n.rating && (
+                  <p className="text-sm text-yellow-400">
+                    ⭐ {n.rating} / 5
+                  </p>
+                )}
+
+                {/* 🏷 TAGS */}
+                {n.tag && n.tag.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {n.tag.map((tag: string, i: number) => (
+                      <span
+                        key={i}
+                        className="text-xs bg-white/10 border border-white/10 px-2 py-1 rounded-md"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-xs text-white/40">
+                  {formatTime(n.createdAt)}
+                </p>
+
               </div>
+
+              {/* RIGHT */}
+              {!n.isRead && (
+                <div className="w-2 h-2 bg-blue-400 rounded-full mt-1 animate-pulse" />
+              )}
+
             </div>
-          ))}
-        </div>
-      )}
-    </div>
+          </div>
+        ))}
+
+      </div>
+    )}
+
+  </main>
+</div>
   );
 }
