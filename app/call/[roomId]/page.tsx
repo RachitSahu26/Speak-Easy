@@ -6,7 +6,7 @@ import { io, Socket } from "socket.io-client";
 import { useSession } from "next-auth/react";
 
 const SOCKET_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://localhost:3006";
+  process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://10.208.251.240:3006";
 
 type PeerUser = {
   id: string;
@@ -14,38 +14,72 @@ type PeerUser = {
 };
 
 export default function CallPage() {
-  const [seconds, setSeconds] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-
   const { data: session } = useSession();
   const router = useRouter();
   const params = useParams();
   const roomId = params.roomId as string;
 
-  const [peer, setPeer] = useState<PeerUser | null>(null);
-  const peerRef = useRef<PeerUser | null>(null);
-
-  const [callSessionId, setCallSessionId] = useState("");
-  const callSessionRef = useRef<string>("");
-
   const socketRef = useRef<Socket | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // ✅ Keep refs updated (IMPORTANT)
+  const [peer, setPeer] = useState<PeerUser | null>(null);
+
+  // 🎤 STEP 1: MIC
   useEffect(() => {
-    peerRef.current = peer;
-  }, [peer]);
+    async function startAudio() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
 
-  useEffect(() => {
-    callSessionRef.current = callSessionId;
-  }, [callSessionId]);
+        localStreamRef.current = stream;
+        console.log("🎤 Mic ready");
+      } catch (err) {
+        console.error("❌ Mic error:", err);
+      }
+    }
 
+    startAudio();
+  }, []);
+
+  // ☎️ STEP 2: CREATE PEER CONNECTION
+  function createPeerConnection() {
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    // 🎧 Receive audio
+    pc.ontrack = (event) => {
+     console.log("🎧 Receiving audio on this device");
+
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = event.streams[0];
+      }
+    };
+
+    // 🌐 Send ICE
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        socketRef.current?.emit("ice-candidate", {
+          roomId,
+          candidate: event.candidate,
+        });
+      }
+    };
+
+    peerConnectionRef.current = pc;
+    return pc;
+  }
+
+  // 🔌 SOCKET LOGIC
   useEffect(() => {
     if (!session?.user?.id) return;
 
     const socket = io(SOCKET_URL);
     socketRef.current = socket;
 
-    // 🔌 Connect
     socket.on("connect", () => {
       socket.emit("client:identify", {
         userId: session.user.id,
@@ -53,7 +87,6 @@ export default function CallPage() {
       });
     });
 
-    // ✅ After identify
     socket.on("server:identified", () => {
       socket.emit("client:join-room", { roomId });
 
@@ -63,74 +96,70 @@ export default function CallPage() {
       });
     });
 
-    // ✅ Receive peer + callSessionId
-    socket.on("server:room-data", (data) => {
-      setPeer(data.peer);
-      setCallSessionId(data.callSessionId);
+    // 📩 OFFER (caller)
+   socket.on("server:room-data", async (data) => {
+  setPeer(data.peer);
 
-      if (!timerRef.current) {
-        timerRef.current = setInterval(() => {
-          setSeconds((prev) => prev + 1);
-        }, 1000);
-      }
+  // 🔥 WAIT until mic is ready
+  if (!localStreamRef.current) {
+    console.log("⏳ Waiting for mic...");
+    return;
+  }
+
+  // 🔥 Only one user creates offer
+  if (session.user.id < data.peer.id) {
+    const pc = createPeerConnection();
+console.log("🎤 Adding tracks:", localStreamRef.current?.getTracks());
+    localStreamRef.current.getTracks().forEach((track) => {
+      pc.addTrack(track, localStreamRef.current!);
     });
 
-    // ❌ Error fallback
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    socket.emit("offer", { roomId, offer });
+  }
+});
+
+    // 📩 RECEIVE OFFER
+    socket.on("offer", async (offer) => {
+      const pc = createPeerConnection();
+
+      await pc.setRemoteDescription(offer);
+// 🔥 ADD THIS LINE HERE
+  console.log("🎤 Adding tracks:", localStreamRef.current?.getTracks());
+      localStreamRef.current?.getTracks().forEach((track) => {
+        pc.addTrack(track, localStreamRef.current!);
+      });
+
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      socket.emit("answer", { roomId, answer });
+    });
+
+    // 📩 RECEIVE ANSWER
+    socket.on("answer", async (answer) => {
+      await peerConnectionRef.current?.setRemoteDescription(answer);
+    });
+
+    // 🌐 RECEIVE ICE
+    socket.on("ice-candidate", async (candidate) => {
+      await peerConnectionRef.current?.addIceCandidate(candidate);
+    });
+
     socket.on("server:error", () => {
       router.push("/find-partner");
     });
 
-    // 🔴 Call ended → redirect safely
-    socket.on("call-ended", () => {
-      const peerData = peerRef.current;
-      const sessionId = callSessionRef.current;
-
-      if (!peerData || !sessionId) {
-        console.log("❌ Missing data, fallback");
-        router.push("/find-partner");
-        return;
-      }
-
-      console.log("🚀 REDIRECTING:", {
-        sessionId,
-        peerId: peerData.id,
-        name: peerData.name,
-      });
-
-      router.push(
-        `/post-call?callSessionId=${sessionId}&partnerId=${peerData.id}&partnerName=${encodeURIComponent(peerData.name)}`
-      );
-    });
-
-    // ✅ Cleanup
     return () => {
       socket.disconnect();
-
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
     };
   }, [roomId, session?.user?.id]);
 
-  // 🔴 End Call
+  // 🔴 END CALL
   const handleEndCall = () => {
-    if (!socketRef.current) return;
-
-    socketRef.current.emit("end-call", { roomId });
-  };
-
-  // 🔵 Next (skip)
-  const handleNext = () => {
     socketRef.current?.emit("end-call", { roomId });
-  };
-
-  const formatTime = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-
-    return `${m.toString().padStart(2, "0")}:${s
-      .toString()
-      .padStart(2, "0")}`;
   };
 
   if (!peer) {
@@ -142,47 +171,20 @@ export default function CallPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#040b1f] text-white flex items-center justify-center px-6">
-      <div className="w-full max-w-md">
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-xl p-8 text-center space-y-6">
+    <div className="min-h-screen bg-[#040b1f] text-white flex items-center justify-center">
+      <div className="text-center space-y-6">
+        <h1 className="text-2xl">{peer.name}</h1>
+        <p>🟢 Connected</p>
 
-          {/* Avatar */}
-          <div className="flex justify-center">
-            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-2xl font-bold">
-              {peer.name?.charAt(0).toUpperCase()}
-            </div>
-          </div>
+        <button
+          onClick={handleEndCall}
+          className="px-4 py-2 bg-red-500 rounded"
+        >
+          End Call
+        </button>
 
-          {/* Name */}
-          <h1 className="text-2xl font-semibold">{peer.name}</h1>
-
-          {/* Status */}
-          <p className="text-green-400 text-sm animate-pulse">
-            🟢 Connected
-          </p>
-
-          <p className="text-white/60 text-sm">
-            ⏱ {formatTime(seconds)}
-          </p>
-
-          {/* Actions */}
-          <div className="flex justify-center gap-4 pt-4">
-            <button
-              onClick={handleEndCall}
-              className="px-5 py-2 rounded-lg bg-red-500 hover:bg-red-600"
-            >
-              End Call
-            </button>
-
-            <button
-              onClick={handleNext}
-              className="px-5 py-2 rounded-lg bg-blue-500 hover:bg-blue-600"
-            >
-              Next
-            </button>
-          </div>
-
-        </div>
+        {/* 🔊 AUDIO */}
+        <audio ref={remoteAudioRef} autoPlay />
       </div>
     </div>
   );

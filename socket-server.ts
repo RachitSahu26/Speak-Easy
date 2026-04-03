@@ -9,8 +9,6 @@ import { callSessions } from "./lib/db/schema";
 
 const PORT = Number(process.env.SOCKET_PORT || 3006);
 
-// ================= TYPES =================
-
 type UserProfile = {
   id: string;
   name: string;
@@ -21,23 +19,17 @@ type RoomData = {
   users: Record<string, UserProfile>;
 };
 
-// ================= SERVER =================
-
 const httpServer = http.createServer();
 
 const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
-// ================= STATE =================
-
 const waitingQueue: string[] = [];
 const waitingSet: Set<string> = new Set();
-const socketUsers: Map<string, string> = new Map(); // socketId -> userId
-const userProfiles: Map<string, UserProfile> = new Map(); // userId -> profile
+const socketUsers: Map<string, string> = new Map();
+const userProfiles: Map<string, UserProfile> = new Map();
 const roomData: Map<string, RoomData> = new Map();
-
-// ================= HELPERS =================
 
 function broadcastOnlineCount() {
   io.emit("server:online-count", { count: socketUsers.size });
@@ -68,8 +60,6 @@ function removeFromQueue(socketId: string) {
   waitingSet.delete(socketId);
 }
 
-// ================= MATCHING =================
-
 async function tryMatchUsers() {
   while (waitingQueue.length >= 2) {
     const s1 = waitingQueue.shift()!;
@@ -89,25 +79,19 @@ async function tryMatchUsers() {
     if (!p1 || !p2) continue;
 
     try {
-      // ✅ 1. Generate roomId FIRST
       const roomId = `room-${randomUUID()}`;
-      console.log("✅ ROOM ID:", roomId);
 
-      // ✅ 2. Insert into DB (IMPORTANT FIX)
       const [session] = await db
         .insert(callSessions)
         .values({
-          roomId: roomId, // ✅ MUST MATCH schema
+          roomId,
           userAId: u1,
           userBId: u2,
         })
-        .returning({
-          id: callSessions.id,
-        });
+        .returning({ id: callSessions.id });
 
       const callSessionId = session.id;
 
-      // ✅ 3. Store room data
       roomData.set(roomId, {
         callSessionId,
         users: {
@@ -116,7 +100,6 @@ async function tryMatchUsers() {
         },
       });
 
-      // ✅ 4. Notify both users
       io.to(s1).emit("server:matched", { roomId, callSessionId });
       io.to(s2).emit("server:matched", { roomId, callSessionId });
     } catch (error) {
@@ -125,21 +108,14 @@ async function tryMatchUsers() {
   }
 }
 
-// ================= SOCKET =================
-
 io.on("connection", (socket: Socket) => {
   socket.emit("server:online-count", { count: socketUsers.size });
 
-  // Identify user
-  socket.on(
-    "client:identify",
-    (profile: { userId: string; name: string }) => {
-      registerUser(socket, profile);
-      socket.emit("server:identified");
-    }
-  );
+  socket.on("client:identify", (profile) => {
+    registerUser(socket, profile);
+    socket.emit("server:identified");
+  });
 
-  // Find match
   socket.on("client:find-match", () => {
     if (waitingSet.has(socket.id)) return;
 
@@ -149,58 +125,60 @@ io.on("connection", (socket: Socket) => {
     tryMatchUsers();
   });
 
-  // Leave queue
   socket.on("client:leave-queue", () => {
     removeFromQueue(socket.id);
   });
 
-  // Get room info
-  socket.on(
-    "client:get-room",
-    ({ roomId, userId }: { roomId: string; userId: string }) => {
-      const room = roomData.get(roomId);
+  socket.on("client:get-room", ({ roomId, userId }) => {
+    const room = roomData.get(roomId);
 
-      if (!room) {
-        socket.emit("server:error", { message: "Room not found" });
-        return;
-      }
-
-      const peer = room.users[userId];
-
-      if (!peer) {
-        socket.emit("server:error", { message: "Peer not found" });
-        return;
-      }
-
-      socket.emit("server:room-data", {
-        peer,
-        callSessionId: room.callSessionId, // ✅ IMPORTANT
-      });
+    if (!room) {
+      socket.emit("server:error");
+      return;
     }
-  );
 
-  // Join socket room
-  socket.on("client:join-room", ({ roomId }: { roomId: string }) => {
+    const peer = room.users[userId];
+
+    if (!peer) {
+      socket.emit("server:error");
+      return;
+    }
+
+    socket.emit("server:room-data", {
+      peer,
+      callSessionId: room.callSessionId,
+    });
+  });
+
+  socket.on("client:join-room", ({ roomId }) => {
     socket.join(roomId);
-    console.log("✅ Joined room:", roomId);
   });
 
-  // End call
-  socket.on("end-call", ({ roomId }: { roomId: string }) => {
-    console.log("🔥 END CALL:", roomId);
+  // 🔥 ================= WEBRTC =================
 
-    io.to(roomId).emit("call-ended", { roomId });
+  socket.on("offer", ({ roomId, offer }) => {
+    socket.to(roomId).emit("offer", offer);
   });
 
-  // Disconnect
+  socket.on("answer", ({ roomId, answer }) => {
+    socket.to(roomId).emit("answer", answer);
+  });
+
+  socket.on("ice-candidate", ({ roomId, candidate }) => {
+    socket.to(roomId).emit("ice-candidate", candidate);
+  });
+
+  // 🔴 End call
+  socket.on("end-call", ({ roomId }) => {
+    io.to(roomId).emit("call-ended");
+  });
+
   socket.on("disconnect", () => {
     removeFromQueue(socket.id);
     socketUsers.delete(socket.id);
   });
 });
 
-// ================= START SERVER =================
-
 httpServer.listen(PORT, () => {
-  console.log(`🚀 Socket Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

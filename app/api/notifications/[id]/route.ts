@@ -5,16 +5,15 @@ import { NextResponse } from "next/server";
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
+
   try {
-    await db
-      .update(notifications)
-      .set({ isRead: true })
-      .where(eq(notifications.id, params.id));
+    // your logic here
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: "Failed" }, { status: 500 });
+    return NextResponse.json({ error: "Something went wrong" });
   }
 }
