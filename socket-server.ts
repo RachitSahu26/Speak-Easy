@@ -7,7 +7,7 @@ import { randomUUID } from "crypto";
 import { db } from "./lib/db";
 import { callSessions } from "./lib/db/schema";
 
-const PORT = Number(process.env.SOCKET_PORT || 3006);
+const PORT = Number(process.env.PORT) || 3006;
 
 type UserProfile = {
   id: string;
