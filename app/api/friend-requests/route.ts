@@ -75,11 +75,12 @@ export async function POST(request: Request) {
         .where(eq(friendRequests.id, pendingFromReceiver.id));
 
       // Create notification for the sender that their request was accepted
-      await db.insert(notifications).values({
-        userId: senderId,
-        type: "friend_request",
-        referenceId: pendingFromReceiver.id,
-      });
+  await db.insert(notifications).values({
+  userId: senderId,
+  type: "friend_request",
+  referenceId: pendingFromReceiver.id,
+  senderName: session.user.name ?? "Anonymous", // ✅ FIX
+});
 
       return NextResponse.json(
         {
@@ -116,11 +117,12 @@ export async function POST(request: Request) {
       .returning({ id: friendRequests.id });
 
     // Create notification for the receiver
-    await db.insert(notifications).values({
-      userId: receiverId,
-      type: "friend_request",
-      referenceId: created.id,
-    });
+   await db.insert(notifications).values({
+  userId: receiverId,
+  type: "friend_request",
+  referenceId: created.id,
+  senderName: session.user.name ?? "Anonymous", // ✅ FIX
+});
 
     return NextResponse.json(
       {

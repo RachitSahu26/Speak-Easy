@@ -4,9 +4,22 @@ import { Bell } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+// ✅ Add type
+type Notification = {
+  id: string;
+  isRead: boolean;
+  type: string;
+  senderName?: string;
+  referenceId?: string;
+  comment?: string;
+};
+
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
+
+  // ✅ FIX: add type here
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
   const router = useRouter();
 
   // 📥 fetch notifications
@@ -22,8 +35,7 @@ export default function NotificationBell() {
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   // 👆 click notification
-  const handleClick = async (n) => {
-    // mark as read (we'll create API next)
+  const handleClick = async (n: Notification) => {
     await fetch(`/api/notifications/${n.id}`, {
       method: "PATCH",
     });
@@ -36,7 +48,9 @@ export default function NotificationBell() {
     );
 
     // go to feedback page
-    router.push(`/feedback/${n.referenceId}`);
+    if (n.referenceId) {
+      router.push(`/feedback/${n.referenceId}`);
+    }
   };
 
   return (
@@ -77,6 +91,7 @@ export default function NotificationBell() {
                 }`}
               >
                 ⭐ {n.senderName || "Someone"} gave you feedback
+
                 {n.comment && (
                   <p className="text-xs text-gray-500">
                     {n.comment}

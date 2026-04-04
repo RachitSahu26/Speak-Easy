@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     await db.insert(notifications).values({
       userId: reviewedUserId,
       type: "feedback",
-      senderName: session.user.name,
+      senderName: session.user.name ?? "Anonymous",
       comment,
       referenceId: newFeedback.id,
     });

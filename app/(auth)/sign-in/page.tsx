@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { Suspense, FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -8,7 +8,8 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function SignInPage() {
+// ✅ Inner component (uses useSearchParams)
+function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
@@ -72,7 +73,7 @@ export default function SignInPage() {
               />
             </div>
 
-            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            {error && <p className="text-sm text-red-600">{error}</p>}
 
             <Button
               type="submit"
@@ -93,5 +94,14 @@ export default function SignInPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ✅ Outer component (wrap with Suspense)
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<div className="text-center mt-10">Loading...</div>}>
+      <SignInContent />
+    </Suspense>
   );
 }
