@@ -18,7 +18,7 @@ export default function CallPage() {
   const router = useRouter();
   const params = useParams();
   const roomId = params.roomId as string;
-
+  const [callSessionId, setCallSessionId] = useState<string>("");
   const socketRef = useRef<Socket | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -52,7 +52,7 @@ export default function CallPage() {
 
     // 🎧 Receive audio
     pc.ontrack = (event) => {
-     console.log("🎧 Receiving audio on this device");
+      console.log("🎧 Receiving audio");
 
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = event.streams[0];
@@ -96,38 +96,40 @@ export default function CallPage() {
       });
     });
 
-    // 📩 OFFER (caller)
-   socket.on("server:room-data", async (data) => {
-  setPeer(data.peer);
+    // 📩 ROOM DATA → CREATE OFFER
+    socket.on("server:room-data", async (data) => {
+      setPeer(data.peer);
+      setCallSessionId(data.callSessionId);
+      if (!localStreamRef.current) {
+        console.log("⏳ Waiting for mic...");
+        return;
+      }
 
-  // 🔥 WAIT until mic is ready
-  if (!localStreamRef.current) {
-    console.log("⏳ Waiting for mic...");
-    return;
-  }
+      // 🔥 Only one user creates offer
+      if (session.user.id < data.peer.id) {
+        const pc = createPeerConnection();
 
-  // 🔥 Only one user creates offer
-  if (session.user.id < data.peer.id) {
-    const pc = createPeerConnection();
-console.log("🎤 Adding tracks:", localStreamRef.current?.getTracks());
-    localStreamRef.current.getTracks().forEach((track) => {
-      pc.addTrack(track, localStreamRef.current!);
+        console.log("🎤 Adding tracks");
+
+        localStreamRef.current.getTracks().forEach((track) => {
+          pc.addTrack(track, localStreamRef.current!);
+        });
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        socket.emit("offer", { roomId, offer });
+      }
     });
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    socket.emit("offer", { roomId, offer });
-  }
-});
 
     // 📩 RECEIVE OFFER
     socket.on("offer", async (offer) => {
       const pc = createPeerConnection();
 
       await pc.setRemoteDescription(offer);
-// 🔥 ADD THIS LINE HERE
-  console.log("🎤 Adding tracks:", localStreamRef.current?.getTracks());
+
+      console.log("🎤 Adding tracks (receiver)");
+
       localStreamRef.current?.getTracks().forEach((track) => {
         pc.addTrack(track, localStreamRef.current!);
       });
@@ -148,6 +150,28 @@ console.log("🎤 Adding tracks:", localStreamRef.current?.getTracks());
       await peerConnectionRef.current?.addIceCandidate(candidate);
     });
 
+    // 🔴 CALL ENDED (IMPORTANT)
+    socket.on("call-ended", () => {
+       
+      console.log("📴 Call ended");
+
+      // stop mic
+      localStreamRef.current?.getTracks().forEach((track) => track.stop());
+
+      // close connection
+      peerConnectionRef.current?.close();
+
+      // clear audio
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = null;
+      }
+
+      // redirect
+      router.push(
+        `/post-call?callSessionId=${callSessionId}&partnerId=${peer?.id}&partnerName=${encodeURIComponent(peer?.name || "")}`
+      );
+    });
+
     socket.on("server:error", () => {
       router.push("/find-partner");
     });
@@ -157,10 +181,45 @@ console.log("🎤 Adding tracks:", localStreamRef.current?.getTracks());
     };
   }, [roomId, session?.user?.id]);
 
-  // 🔴 END CALL
-  const handleEndCall = () => {
-    socketRef.current?.emit("end-call", { roomId });
-  };
+  // 🔴 END CALL BUTTON
+
+
+
+const handleEndCall = () => {
+
+
+  socketRef.current?.emit("end-call", { roomId });
+
+  localStreamRef.current?.getTracks().forEach((track) => track.stop());
+  peerConnectionRef.current?.close();
+
+  if (remoteAudioRef.current) {
+    remoteAudioRef.current.srcObject = null;
+  }
+
+  router.push(
+    `/post-call?callSessionId=${callSessionId}&partnerId=${peer?.id}&partnerName=${encodeURIComponent(peer?.name || "")}`
+  );
+};
+
+
+
+
+
+
+  // ⚠️ PREVENT ACCIDENTAL REFRESH
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Are you sure you want to leave the call?";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
 
   if (!peer) {
     return (
@@ -184,7 +243,7 @@ console.log("🎤 Adding tracks:", localStreamRef.current?.getTracks());
         </button>
 
         {/* 🔊 AUDIO */}
-        <audio ref={remoteAudioRef} autoPlay />
+        <audio ref={remoteAudioRef} autoPlay playsInline />
       </div>
     </div>
   );
