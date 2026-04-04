@@ -1,6 +1,7 @@
 import { and, asc, eq, or } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -14,7 +15,10 @@ type Params = {
   }>;
 };
 
-export async function GET(_request: Request, { params }: Params) {
+export async function GET(
+  _request: NextRequest,
+  { params }: Params
+) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -40,7 +44,10 @@ export async function GET(_request: Request, { params }: Params) {
 
     const isFriend = await areUsersFriends(userId, friendId);
     if (!isFriend) {
-      return NextResponse.json({ message: "Chat allowed for friends only" }, { status: 403 });
+      return NextResponse.json(
+        { message: "Chat allowed for friends only" },
+        { status: 403 }
+      );
     }
 
     const messages = await db
@@ -54,9 +61,15 @@ export async function GET(_request: Request, { params }: Params) {
       .from(chatMessages)
       .where(
         or(
-          and(eq(chatMessages.senderId, userId), eq(chatMessages.receiverId, friendId)),
-          and(eq(chatMessages.senderId, friendId), eq(chatMessages.receiverId, userId)),
-        ),
+          and(
+            eq(chatMessages.senderId, userId),
+            eq(chatMessages.receiverId, friendId)
+          ),
+          and(
+            eq(chatMessages.senderId, friendId),
+            eq(chatMessages.receiverId, userId)
+          )
+        )
       )
       .orderBy(asc(chatMessages.createdAt));
 
@@ -65,15 +78,21 @@ export async function GET(_request: Request, { params }: Params) {
         friend,
         messages,
       },
-      { status: 200 },
+      { status: 200 }
     );
   } catch (error) {
     console.error("GET CHAT ERROR:", error);
-    return NextResponse.json({ message: "Failed to fetch chat" }, { status: 500 });
+    return NextResponse.json(
+      { message: "Failed to fetch chat" },
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(request: Request, { params }: Params) {
+export async function POST(
+  request: NextRequest,
+  { params }: Params
+) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -86,7 +105,10 @@ export async function POST(request: Request, { params }: Params) {
 
     const isFriend = await areUsersFriends(userId, friendId);
     if (!isFriend) {
-      return NextResponse.json({ message: "Chat allowed for friends only" }, { status: 403 });
+      return NextResponse.json(
+        { message: "Chat allowed for friends only" },
+        { status: 403 }
+      );
     }
 
     const payload = await request.json();
@@ -95,7 +117,7 @@ export async function POST(request: Request, { params }: Params) {
     if (!parsed.success) {
       return NextResponse.json(
         { message: parsed.error.issues[0]?.message ?? "Invalid message" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -117,6 +139,9 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ message: created }, { status: 201 });
   } catch (error) {
     console.error("SEND CHAT MESSAGE ERROR:", error);
-    return NextResponse.json({ message: "Failed to send message" }, { status: 500 });
+    return NextResponse.json(
+      { message: "Failed to send message" },
+      { status: 500 }
+    );
   }
 }

@@ -9,8 +9,7 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const SOCKET_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://localhost:3006";
+const SOCKET_URL =process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://localhost:3006";
 
 export default function FindPartnerPage() {
   const router = useRouter();

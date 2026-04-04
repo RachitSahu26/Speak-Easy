@@ -1,36 +1,28 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
-type Params = {
-  params: {
-    userId: string;
-  };
-};
-
-export async function GET(_request: Request, { params }: Params) {
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ userId: string }> }
+) {
   try {
-    const { userId } = params;
+    const { userId } = await params; // ✅ FIX
 
     const [user] = await db
       .select({
         id: users.id,
         name: users.name,
         interests: users.interestAreas,
-        location: users.location,        
-        goal: users.futureGoal,           
-        status: users.status,            
-      }).from(users)
+        location: users.location,
+        goal: users.futureGoal,
+        status: users.status,
+      })
+      .from(users)
       .where(eq(users.id, userId))
       .limit(1);
-
-
-
-
-
-
-
 
     if (!user) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
@@ -40,6 +32,9 @@ export async function GET(_request: Request, { params }: Params) {
 
   } catch (error) {
     console.error("GET USER ERROR:", error);
-    return NextResponse.json({ message: "Failed to fetch user" }, { status: 500 });
+    return NextResponse.json(
+      { message: "Failed to fetch user" },
+      { status: 500 }
+    );
   }
 }
