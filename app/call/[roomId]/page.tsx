@@ -246,7 +246,7 @@ export default function CallPage() {
     if (!localStreamRef.current || !roomReadyData) return;
 
     const data = roomReadyData;
-
+    if (!session?.user?.id) return
     if (session?.user?.id < data.peer.id) {
       const pc = createPeerConnection();
 
