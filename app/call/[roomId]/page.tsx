@@ -25,7 +25,8 @@ export default function CallPage() {
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const [connectionState, setConnectionState] = useState("connecting");
   const [peer, setPeer] = useState<PeerUser | null>(null);
-const [roomReadyData, setRoomReadyData] = useState<any>(null);
+  const [roomReadyData, setRoomReadyData] = useState<any>(null);
+  const reconnectAttemptsRef = useRef(0);
   // 🎤 STEP 1: MIC
   useEffect(() => {
     async function startAudio() {
@@ -90,8 +91,36 @@ const [roomReadyData, setRoomReadyData] = useState<any>(null);
       }
 
       if (state === "failed") {
-        console.log("❌ Connection failed");
+        console.log("❌ Connection failed → trying ICE restart");
+
         setConnectionState("reconnecting");
+
+        if (reconnectAttemptsRef.current >= 3) {
+          console.log("❌ Max ICE restart attempts reached");
+          return;
+        }
+
+        if (pc.signalingState !== "stable") {
+          console.log("⚠️ Skipping ICE restart — signaling not stable");
+          return;
+        }
+
+        reconnectAttemptsRef.current++;
+
+        pc.createOffer({ iceRestart: true })
+          .then(async (offer) => {
+            await pc.setLocalDescription(offer);
+
+            console.log("🔄 Sending ICE restart offer");
+
+            socketRef.current?.emit("offer", {
+              roomId,
+              offer,
+            });
+          })
+          .catch((err) => {
+            console.error("❌ ICE restart failed:", err);
+          });
       }
 
       if (state === "closed") {
@@ -129,29 +158,37 @@ const [roomReadyData, setRoomReadyData] = useState<any>(null);
     socket.on("server:room-data", async (data) => {
       setPeer(data.peer);
       setCallSessionId(data.callSessionId);
-    // 🧠 STEP 1: store data instead of using immediately
-  setRoomReadyData(data);
+      // 🧠 STEP 1: store data instead of using immediately
+      setRoomReadyData(data);
 
       // 🔥 Only one user creates offer
-    
+
     });
 
     // 📩 RECEIVE OFFER
     socket.on("offer", async (offer) => {
-      const pc = createPeerConnection();
+      let pc = peerConnectionRef.current;
+
+      // 🧠 If no connection exists → create (first time only)
+      if (!pc) {
+        console.log("🆕 Creating new peer connection (first time)");
+        pc = createPeerConnection();
+
+        console.log("🎤 Adding tracks (receiver)");
+
+        localStreamRef.current?.getTracks().forEach((track) => {
+          pc!.addTrack(track, localStreamRef.current!);
+        });
+      } else {
+        console.log("♻️ Reusing existing peer connection (ICE restart)");
+      }
 
       await pc.setRemoteDescription(offer);
-
-      console.log("🎤 Adding tracks (receiver)");
-
-      localStreamRef.current?.getTracks().forEach((track) => {
-        pc.addTrack(track, localStreamRef.current!);
-      });
 
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
-      socket.emit("answer", { roomId, answer });
+      socketRef.current?.emit("answer", { roomId, answer });
     });
 
     // 📩 RECEIVE ANSWER
@@ -216,38 +253,41 @@ const [roomReadyData, setRoomReadyData] = useState<any>(null);
     );
   };
 
-
-
-useEffect(() => {
-  // ❌ wait until both are ready
-  if (!localStreamRef.current || !roomReadyData) return;
-
-  console.log("🚀 Both ready → starting call");
-
-  const data = roomReadyData;
-if (!session?.user?.id) return;
-
-
-  // 🔥 only one user creates offer
-  if (session?.user?.id < data.peer.id) {
-    const pc = createPeerConnection();
-
-    console.log("🎤 Adding tracks");
-
-    localStreamRef.current.getTracks().forEach((track) => {
-      pc.addTrack(track, localStreamRef.current!);
-    });
-
-    pc.createOffer().then(async (offer) => {
-      await pc.setLocalDescription(offer);
-
-      socketRef.current?.emit("offer", {
-        roomId,
-        offer,
-      });
-    });
+  if (reconnectAttemptsRef.current > 3) {
+    console.log("❌ Max reconnect attempts reached");
+    return;
   }
-}, [roomReadyData]);
+
+  useEffect(() => {
+    // ❌ wait until both are ready
+    if (!localStreamRef.current || !roomReadyData) return;
+
+    console.log("🚀 Both ready → starting call");
+
+    const data = roomReadyData;
+    if (!session?.user?.id) return;
+
+
+    // 🔥 only one user creates offer
+    if (session?.user?.id < data.peer.id) {
+      const pc = createPeerConnection();
+
+      console.log("🎤 Adding tracks");
+
+      localStreamRef.current.getTracks().forEach((track) => {
+        pc.addTrack(track, localStreamRef.current!);
+      });
+
+      pc.createOffer().then(async (offer) => {
+        await pc.setLocalDescription(offer);
+
+        socketRef.current?.emit("offer", {
+          roomId,
+          offer,
+        });
+      });
+    }
+  }, [roomReadyData]);
 
 
   // ⚠️ PREVENT ACCIDENTAL REFRESH
