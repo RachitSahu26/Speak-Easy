@@ -23,9 +23,9 @@ export default function CallPage() {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
-
+  const [connectionState, setConnectionState] = useState("connecting");
   const [peer, setPeer] = useState<PeerUser | null>(null);
-
+const [roomReadyData, setRoomReadyData] = useState<any>(null);
   // 🎤 STEP 1: MIC
   useEffect(() => {
     async function startAudio() {
@@ -69,6 +69,35 @@ export default function CallPage() {
       }
     };
 
+
+    pc.onconnectionstatechange = () => {
+      const state = pc.connectionState;
+      console.log("🧠 Connection State:", state);
+
+      if (state === "connected") {
+        setConnectionState("connected");
+      }
+
+      if (state === "disconnected") {
+        setConnectionState("disconnected");
+
+        // wait before reacting
+        setTimeout(() => {
+          if (pc.connectionState === "disconnected") {
+            console.log("⚠️ Still disconnected...");
+          }
+        }, 4000);
+      }
+
+      if (state === "failed") {
+        console.log("❌ Connection failed");
+        setConnectionState("reconnecting");
+      }
+
+      if (state === "closed") {
+        setConnectionState("closed");
+      }
+    };
     peerConnectionRef.current = pc;
     return pc;
   }
@@ -100,26 +129,11 @@ export default function CallPage() {
     socket.on("server:room-data", async (data) => {
       setPeer(data.peer);
       setCallSessionId(data.callSessionId);
-      if (!localStreamRef.current) {
-        console.log("⏳ Waiting for mic...");
-        return;
-      }
+    // 🧠 STEP 1: store data instead of using immediately
+  setRoomReadyData(data);
 
       // 🔥 Only one user creates offer
-      if (session.user.id < data.peer.id) {
-        const pc = createPeerConnection();
-
-        console.log("🎤 Adding tracks");
-
-        localStreamRef.current.getTracks().forEach((track) => {
-          pc.addTrack(track, localStreamRef.current!);
-        });
-
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        socket.emit("offer", { roomId, offer });
-      }
+    
     });
 
     // 📩 RECEIVE OFFER
@@ -152,7 +166,7 @@ export default function CallPage() {
 
     // 🔴 CALL ENDED (IMPORTANT)
     socket.on("call-ended", () => {
-       
+
       console.log("📴 Call ended");
 
       // stop mic
@@ -185,26 +199,55 @@ export default function CallPage() {
 
 
 
-const handleEndCall = () => {
+  const handleEndCall = () => {
 
 
-  socketRef.current?.emit("end-call", { roomId });
+    socketRef.current?.emit("end-call", { roomId });
 
-  localStreamRef.current?.getTracks().forEach((track) => track.stop());
-  peerConnectionRef.current?.close();
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
+    peerConnectionRef.current?.close();
 
-  if (remoteAudioRef.current) {
-    remoteAudioRef.current.srcObject = null;
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
+    }
+
+    router.push(
+      `/post-call?callSessionId=${callSessionId}&partnerId=${peer?.id}&partnerName=${encodeURIComponent(peer?.name || "")}`
+    );
+  };
+
+
+
+useEffect(() => {
+  // ❌ wait until both are ready
+  if (!localStreamRef.current || !roomReadyData) return;
+
+  console.log("🚀 Both ready → starting call");
+
+  const data = roomReadyData;
+if (!session?.user?.id) return;
+
+
+  // 🔥 only one user creates offer
+  if (session?.user?.id < data.peer.id) {
+    const pc = createPeerConnection();
+
+    console.log("🎤 Adding tracks");
+
+    localStreamRef.current.getTracks().forEach((track) => {
+      pc.addTrack(track, localStreamRef.current!);
+    });
+
+    pc.createOffer().then(async (offer) => {
+      await pc.setLocalDescription(offer);
+
+      socketRef.current?.emit("offer", {
+        roomId,
+        offer,
+      });
+    });
   }
-
-  router.push(
-    `/post-call?callSessionId=${callSessionId}&partnerId=${peer?.id}&partnerName=${encodeURIComponent(peer?.name || "")}`
-  );
-};
-
-
-
-
+}, [roomReadyData]);
 
 
   // ⚠️ PREVENT ACCIDENTAL REFRESH
@@ -233,7 +276,13 @@ const handleEndCall = () => {
     <div className="min-h-screen bg-[#040b1f] text-white flex items-center justify-center">
       <div className="text-center space-y-6">
         <h1 className="text-2xl">{peer.name}</h1>
-        <p>🟢 Connected</p>
+        <p>
+          {connectionState === "connected" && "🟢 Connected"}
+          {connectionState === "connecting" && "⏳ Connecting..."}
+          {connectionState === "disconnected" && "⚠️ Poor network"}
+          {connectionState === "reconnecting" && "🔄 Reconnecting..."}
+          {connectionState === "failed" && "❌ Connection failed"}
+        </p>
 
         <button
           onClick={handleEndCall}
