@@ -18,16 +18,23 @@ export default function CallPage() {
   const router = useRouter();
   const params = useParams();
   const roomId = params.roomId as string;
+
   const [callSessionId, setCallSessionId] = useState<string>("");
+
   const socketRef = useRef<Socket | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]); // 🔥 NEW
+
   const [connectionState, setConnectionState] = useState("connecting");
   const [peer, setPeer] = useState<PeerUser | null>(null);
   const [roomReadyData, setRoomReadyData] = useState<any>(null);
+
   const reconnectAttemptsRef = useRef(0);
-  // 🎤 STEP 1: MIC
+
+  // 🎤 MIC
   useEffect(() => {
     async function startAudio() {
       try {
@@ -45,22 +52,19 @@ export default function CallPage() {
     startAudio();
   }, []);
 
-  // ☎️ STEP 2: CREATE PEER CONNECTION
+  // ☎️ PEER CONNECTION
   function createPeerConnection() {
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
 
-    // 🎧 Receive audio
     pc.ontrack = (event) => {
       console.log("🎧 Receiving audio");
-
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = event.streams[0];
       }
     };
 
-    // 🌐 Send ICE
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         socketRef.current?.emit("ice-candidate", {
@@ -70,19 +74,18 @@ export default function CallPage() {
       }
     };
 
-
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       console.log("🧠 Connection State:", state);
 
       if (state === "connected") {
         setConnectionState("connected");
+        reconnectAttemptsRef.current = 0; // 🔥 reset
       }
 
       if (state === "disconnected") {
         setConnectionState("disconnected");
 
-        // wait before reacting
         setTimeout(() => {
           if (pc.connectionState === "disconnected") {
             console.log("⚠️ Still disconnected...");
@@ -127,11 +130,12 @@ export default function CallPage() {
         setConnectionState("closed");
       }
     };
+
     peerConnectionRef.current = pc;
     return pc;
   }
 
-  // 🔌 SOCKET LOGIC
+  // 🔌 SOCKET
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -154,36 +158,38 @@ export default function CallPage() {
       });
     });
 
-    // 📩 ROOM DATA → CREATE OFFER
-    socket.on("server:room-data", async (data) => {
+    socket.on("server:room-data", (data) => {
       setPeer(data.peer);
       setCallSessionId(data.callSessionId);
-      // 🧠 STEP 1: store data instead of using immediately
       setRoomReadyData(data);
-
-      // 🔥 Only one user creates offer
-
     });
 
-    // 📩 RECEIVE OFFER
+    // 📩 OFFER
     socket.on("offer", async (offer) => {
       let pc = peerConnectionRef.current;
 
-      // 🧠 If no connection exists → create (first time only)
       if (!pc) {
-        console.log("🆕 Creating new peer connection (first time)");
+        console.log("🆕 Creating new peer connection");
         pc = createPeerConnection();
-
-        console.log("🎤 Adding tracks (receiver)");
 
         localStreamRef.current?.getTracks().forEach((track) => {
           pc!.addTrack(track, localStreamRef.current!);
         });
       } else {
-        console.log("♻️ Reusing existing peer connection (ICE restart)");
+        console.log("♻️ Reusing peer connection (ICE restart)");
       }
 
       await pc.setRemoteDescription(offer);
+
+      // 🔥 APPLY QUEUED ICE
+      while (pendingCandidatesRef.current.length > 0) {
+        const candidate = pendingCandidatesRef.current.shift();
+        try {
+          await pc.addIceCandidate(candidate!);
+        } catch (err) {
+          console.error("❌ Error adding queued ICE:", err);
+        }
+      }
 
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -191,40 +197,43 @@ export default function CallPage() {
       socketRef.current?.emit("answer", { roomId, answer });
     });
 
-    // 📩 RECEIVE ANSWER
+    // 📩 ANSWER
     socket.on("answer", async (answer) => {
       await peerConnectionRef.current?.setRemoteDescription(answer);
     });
 
-    // 🌐 RECEIVE ICE
+    // 🌐 ICE
     socket.on("ice-candidate", async (candidate) => {
-      await peerConnectionRef.current?.addIceCandidate(candidate);
+      const pc = peerConnectionRef.current;
+
+      if (!pc) return;
+
+      if (!pc.remoteDescription) {
+        console.log("⏳ Queuing ICE candidate");
+        pendingCandidatesRef.current.push(candidate);
+        return;
+      }
+
+      try {
+        await pc.addIceCandidate(candidate);
+      } catch (err) {
+        console.error("❌ Error adding ICE:", err);
+      }
     });
 
-    // 🔴 CALL ENDED (IMPORTANT)
     socket.on("call-ended", () => {
-
       console.log("📴 Call ended");
 
-      // stop mic
-      localStreamRef.current?.getTracks().forEach((track) => track.stop());
-
-      // close connection
+      localStreamRef.current?.getTracks().forEach((t) => t.stop());
       peerConnectionRef.current?.close();
 
-      // clear audio
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = null;
       }
 
-      // redirect
       router.push(
         `/post-call?callSessionId=${callSessionId}&partnerId=${peer?.id}&partnerName=${encodeURIComponent(peer?.name || "")}`
       );
-    });
-
-    socket.on("server:error", () => {
-      router.push("/find-partner");
     });
 
     return () => {
@@ -232,47 +241,14 @@ export default function CallPage() {
     };
   }, [roomId, session?.user?.id]);
 
-  // 🔴 END CALL BUTTON
-
-
-
-  const handleEndCall = () => {
-
-
-    socketRef.current?.emit("end-call", { roomId });
-
-    localStreamRef.current?.getTracks().forEach((track) => track.stop());
-    peerConnectionRef.current?.close();
-
-    if (remoteAudioRef.current) {
-      remoteAudioRef.current.srcObject = null;
-    }
-
-    router.push(
-      `/post-call?callSessionId=${callSessionId}&partnerId=${peer?.id}&partnerName=${encodeURIComponent(peer?.name || "")}`
-    );
-  };
-
-  if (reconnectAttemptsRef.current > 3) {
-    console.log("❌ Max reconnect attempts reached");
-    return;
-  }
-
+  // 🚀 START CALL
   useEffect(() => {
-    // ❌ wait until both are ready
     if (!localStreamRef.current || !roomReadyData) return;
 
-    console.log("🚀 Both ready → starting call");
-
     const data = roomReadyData;
-    if (!session?.user?.id) return;
 
-
-    // 🔥 only one user creates offer
     if (session?.user?.id < data.peer.id) {
       const pc = createPeerConnection();
-
-      console.log("🎤 Adding tracks");
 
       localStreamRef.current.getTracks().forEach((track) => {
         pc.addTrack(track, localStreamRef.current!);
@@ -281,35 +257,14 @@ export default function CallPage() {
       pc.createOffer().then(async (offer) => {
         await pc.setLocalDescription(offer);
 
-        socketRef.current?.emit("offer", {
-          roomId,
-          offer,
-        });
+        socketRef.current?.emit("offer", { roomId, offer });
       });
     }
   }, [roomReadyData]);
 
-
-  // ⚠️ PREVENT ACCIDENTAL REFRESH
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "Are you sure you want to leave the call?";
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, []);
-
+  // UI
   if (!peer) {
-    return (
-      <div className="text-white text-center p-10">
-        Connecting to partner...
-      </div>
-    );
+    return <div className="text-white text-center p-10">Connecting...</div>;
   }
 
   return (
@@ -321,17 +276,12 @@ export default function CallPage() {
           {connectionState === "connecting" && "⏳ Connecting..."}
           {connectionState === "disconnected" && "⚠️ Poor network"}
           {connectionState === "reconnecting" && "🔄 Reconnecting..."}
-          {connectionState === "failed" && "❌ Connection failed"}
         </p>
 
-        <button
-          onClick={handleEndCall}
-          className="px-4 py-2 bg-red-500 rounded"
-        >
+        <button onClick={() => socketRef.current?.emit("end-call", { roomId })}>
           End Call
         </button>
 
-        {/* 🔊 AUDIO */}
         <audio ref={remoteAudioRef} autoPlay playsInline />
       </div>
     </div>
