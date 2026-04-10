@@ -340,20 +340,21 @@ io.on("connection", (socket: Socket) => {
 
 // 🌍 TRANSLATION
 
-
 socket.on("send-text", async ({ roomId, text }) => {
   console.log("📩 Server received:", text);
 
   try {
-    const res = await fetch("https://libretranslate.de/translate", {
+    const res = await fetch("https://translate.argosopentech.com/translate", {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         q: text,
         source: "hi",
         target: "en",
         format: "text",
       }),
-      headers: { "Content-Type": "application/json" },
     });
 
     const data = await res.json();
@@ -364,12 +365,12 @@ socket.on("send-text", async ({ roomId, text }) => {
       text: data.translatedText,
     });
 
-    console.log("📤 Sent to room:", roomId);
-
   } catch (err) {
     console.error("❌ Translation error:", err);
   }
 });
+
+
 
 
   // 🔴 END CALL

@@ -33,7 +33,7 @@ export default function CallPage() {
   const [roomReadyData, setRoomReadyData] = useState<any>(null);
   const [translatedText, setTranslatedText] = useState("");
   const reconnectAttemptsRef = useRef(0);
-
+console.log("🔥 SOCKET URL:", SOCKET_URL);
   // 🎤 MIC
   useEffect(() => {
     async function startAudio() {
