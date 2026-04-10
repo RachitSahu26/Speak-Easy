@@ -31,7 +31,7 @@ export default function CallPage() {
   const [connectionState, setConnectionState] = useState("connecting");
   const [peer, setPeer] = useState<PeerUser | null>(null);
   const [roomReadyData, setRoomReadyData] = useState<any>(null);
-
+  const [translatedText, setTranslatedText] = useState("");
   const reconnectAttemptsRef = useRef(0);
 
   // 🎤 MIC
@@ -51,6 +51,49 @@ export default function CallPage() {
 
     startAudio();
   }, []);
+
+  // 🌍 SPEECH → TEXT
+  useEffect(() => {
+  if (!socketRef.current) {
+    console.log("⏳ Waiting for socket...");
+    return;
+  }
+
+  console.log("✅ Starting Speech Recognition");
+
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    console.log("❌ SpeechRecognition not supported");
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "hi-IN";
+  recognition.continuous = true;
+  recognition.interimResults = false;
+
+  recognition.onresult = (event: SpeechRecognitionEvent) => {
+    const text =
+      event.results[event.results.length - 1][0].transcript;
+
+    console.log("🎤 You said:", text);
+
+    socketRef.current?.emit("send-text", {
+      text,
+      roomId,
+    });
+
+    console.log("📤 Sent to server:", text);
+  };
+
+  recognition.start();
+
+  return () => recognition.stop();
+}, [roomId, socketRef.current]);
+
+
 
   // ☎️ PEER CONNECTION
   function createPeerConnection() {
@@ -221,7 +264,16 @@ export default function CallPage() {
       }
     });
 
+// ✅ Listen for translated text (ALWAYS active)
+socket.on("translated-text", ({ text }) => {
+  console.log("🌍 Received:", text);
+  setTranslatedText(text);
+});
+
+
+
     socket.on("call-ended", () => {
+     
       console.log("📴 Call ended");
 
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -267,23 +319,31 @@ export default function CallPage() {
     return <div className="text-white text-center p-10">Connecting...</div>;
   }
 
-  return (
-    <div className="min-h-screen bg-[#040b1f] text-white flex items-center justify-center">
-      <div className="text-center space-y-6">
-        <h1 className="text-2xl">{peer.name}</h1>
-        <p>
-          {connectionState === "connected" && "🟢 Connected"}
-          {connectionState === "connecting" && "⏳ Connecting..."}
-          {connectionState === "disconnected" && "⚠️ Poor network"}
-          {connectionState === "reconnecting" && "🔄 Reconnecting..."}
+  return (<div className="min-h-screen bg-gradient-to-br from-[#0f172a] to-[#020617] text-white flex items-center justify-center">
+    <div className="text-center space-y-6">
+      <h1 className="text-3xl font-semibold">{peer.name}</h1>
+
+      <p className="text-gray-300">
+        {connectionState === "connected" && "🟢 Connected"}
+        {connectionState === "connecting" && "⏳ Connecting..."}
+        {connectionState === "disconnected" && "⚠️ Poor network"}
+        {connectionState === "reconnecting" && "🔄 Reconnecting..."}
+      </p>
+      {translatedText && (
+        <p className="text-lg text-green-400 mt-4">
+          🌍 {translatedText}
         </p>
+      )}
 
-        <button onClick={() => socketRef.current?.emit("end-call", { roomId })}>
-          End Call
-        </button>
+      <button
+        onClick={() => socketRef.current?.emit("end-call", { roomId })}
+        className="!bg-red-500 hover:!bg-red-600 !text-white px-6 py-2 rounded-full shadow-lg transition"
+      >
+        End Call
+      </button>
 
-        <audio ref={remoteAudioRef} autoPlay playsInline />
-      </div>
+      <audio ref={remoteAudioRef} autoPlay playsInline />
     </div>
+  </div>
   );
 }

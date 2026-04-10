@@ -338,7 +338,29 @@ io.on("connection", (socket: Socket) => {
   Both users exchange connection details
   */
 
+// 🌍 TRANSLATION
+socket.on("send-text", async ({ roomId, text }) => {
+  try {
+    const res = await fetch("https://libretranslate.de/translate", {
+      method: "POST",
+      body: JSON.stringify({
+        q: text,
+        source: "hi",
+        target: "en",
+        format: "text",
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
 
+    const data = await res.json();
+
+    socket.to(roomId).emit("translated-text", {
+      text: data.translatedText,
+    });
+  } catch (err) {
+    console.error("❌ Translation error:", err);
+  }
+});
   // 🔴 END CALL
   socket.on("end-call", ({ roomId }) => {
     io.to(roomId).emit("call-ended");
