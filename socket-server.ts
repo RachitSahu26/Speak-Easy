@@ -339,7 +339,11 @@ io.on("connection", (socket: Socket) => {
   */
 
 // 🌍 TRANSLATION
+
+
 socket.on("send-text", async ({ roomId, text }) => {
+  console.log("📩 Server received:", text);
+
   try {
     const res = await fetch("https://libretranslate.de/translate", {
       method: "POST",
@@ -354,13 +358,20 @@ socket.on("send-text", async ({ roomId, text }) => {
 
     const data = await res.json();
 
-    socket.to(roomId).emit("translated-text", {
+    console.log("🌍 Translated:", data.translatedText);
+
+    io.to(roomId).emit("translated-text", {
       text: data.translatedText,
     });
+
+    console.log("📤 Sent to room:", roomId);
+
   } catch (err) {
     console.error("❌ Translation error:", err);
   }
 });
+
+
   // 🔴 END CALL
   socket.on("end-call", ({ roomId }) => {
     io.to(roomId).emit("call-ended");

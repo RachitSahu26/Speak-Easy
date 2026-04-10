@@ -54,44 +54,44 @@ export default function CallPage() {
 
   // 🌍 SPEECH → TEXT
   useEffect(() => {
-  if (!socketRef.current) {
-    console.log("⏳ Waiting for socket...");
-    return;
-  }
+    if (!socketRef.current) {
+      console.log("⏳ Waiting for socket...");
+      return;
+    }
 
-  console.log("✅ Starting Speech Recognition");
+    console.log("✅ Starting Speech Recognition");
 
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
 
-  if (!SpeechRecognition) {
-    console.log("❌ SpeechRecognition not supported");
-    return;
-  }
+    if (!SpeechRecognition) {
+      console.log("❌ SpeechRecognition not supported");
+      return;
+    }
 
-  const recognition = new SpeechRecognition();
-  recognition.lang = "hi-IN";
-  recognition.continuous = true;
-  recognition.interimResults = false;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "hi-IN";
+    recognition.continuous = true;
+    recognition.interimResults = false;
 
-  recognition.onresult = (event: SpeechRecognitionEvent) => {
-    const text =
-      event.results[event.results.length - 1][0].transcript;
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const text =
+        event.results[event.results.length - 1][0].transcript;
 
-    console.log("🎤 You said:", text);
+      console.log("🎤 You said:", text);
 
-    socketRef.current?.emit("send-text", {
-      text,
-      roomId,
-    });
+      socketRef.current?.emit("send-text", {
+        text,
+        roomId,
+      });
 
-    console.log("📤 Sent to server:", text);
-  };
+      console.log("📤 Sent to server:", text);
+    };
 
-  recognition.start();
+    recognition.start();
 
-  return () => recognition.stop();
-}, [roomId, socketRef.current]);
+    return () => recognition.stop();
+  }, [roomId, socketRef.current]);
 
 
 
@@ -264,16 +264,16 @@ export default function CallPage() {
       }
     });
 
-// ✅ Listen for translated text (ALWAYS active)
-socket.on("translated-text", ({ text }) => {
-  console.log("🌍 Received:", text);
-  setTranslatedText(text);
-});
+    // ✅ Listen for translated text (ALWAYS active)
+    socket.on("translated-text", ({ text }) => {
+      console.log("🌍 Received:", text);
+      setTranslatedText(text);
+    });
 
 
 
     socket.on("call-ended", () => {
-     
+
       console.log("📴 Call ended");
 
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -313,6 +313,12 @@ socket.on("translated-text", ({ text }) => {
       });
     }
   }, [roomReadyData]);
+  console.log("STATE:", translatedText);
+
+
+
+
+
 
   // UI
   if (!peer) {
