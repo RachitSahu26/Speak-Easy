@@ -4,16 +4,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev:web\" \"npm run dev:socket\"",
-    "dev:web": "next dev -H 0.0.0.0",
-    "dev:socket": "tsx socket-server.ts",
-    "socket": "tsx socket-server.ts",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push"
-  },
+  "dev": "concurrently \"npm run dev:web\" \"npm run dev:socket\"",
+  "dev:web": "next dev -H 0.0.0.0",
+  "dev:socket": "tsx socket-server.ts",
+  "socket": "tsx socket-server.ts",
+  "build": "next build",
+  "start": "tsx socket-server.ts",
+  "lint": "eslint",
+  "db:generate": "drizzle-kit generate",
+  "db:push": "drizzle-kit push"
+},
 
   "dependencies": {
     "@base-ui/react": "^1.3.0",
