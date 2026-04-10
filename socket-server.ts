@@ -203,7 +203,7 @@ client → find-match
 
 // 🔌 MAIN CONNECTION HANDLER
 io.on("connection", (socket: Socket) => {
-
+console.log("🔥 NEW CLIENT CONNECTED:", socket.id);
   // 📢 Tell user current online count
   socket.emit("server:online-count", { count: socketUsers.size });
 
@@ -401,8 +401,12 @@ socket.on("send-text", async ({ roomId, text }) => {
 
 
 // 🚀 START SERVER
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+
+
+
+
+httpServer.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
 
 /*
