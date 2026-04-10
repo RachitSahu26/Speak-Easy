@@ -6,7 +6,7 @@ import { io, Socket } from "socket.io-client";
 import { useSession } from "next-auth/react";
 
 const SOCKET_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://10.208.251.240:3006";
+  process.env.NEXT_PUBLIC_SOCKET_URL;
 
 type PeerUser = {
   id: string;
