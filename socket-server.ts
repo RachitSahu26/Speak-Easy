@@ -340,11 +340,12 @@ console.log("🔥 NEW CLIENT CONNECTED:", socket.id);
 
 // 🌍 TRANSLATION
 
+
 socket.on("send-text", async ({ roomId, text }) => {
   console.log("📩 Server received:", text);
 
   try {
-    const res = await fetch("https://translate.argosopentech.com/translate", {
+    const res = await fetch("https://libretranslate.com/translate", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -369,7 +370,6 @@ socket.on("send-text", async ({ roomId, text }) => {
     console.error("❌ Translation error:", err);
   }
 });
-
 
 
 
