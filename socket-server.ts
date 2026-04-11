@@ -340,7 +340,6 @@ console.log("🔥 NEW CLIENT CONNECTED:", socket.id);
 
 // 🌍 TRANSLATION
 
-
 socket.on("send-text", async ({ roomId, text }) => {
   console.log("📩 Server received:", text);
 
@@ -360,10 +359,17 @@ socket.on("send-text", async ({ roomId, text }) => {
 
     const data = await res.json();
 
-    console.log("🌍 Translated:", data.translatedText);
+    console.log("FULL API RESPONSE:", data);
+
+    const translated =
+      data.translatedText ||
+      data?.data?.translatedText ||
+      "Translation failed";
+
+    console.log("🌍 Translated:", translated);
 
     io.to(roomId).emit("translated-text", {
-      text: data.translatedText,
+      text: translated,
     });
 
   } catch (err) {
