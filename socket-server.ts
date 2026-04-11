@@ -357,16 +357,24 @@ socket.on("send-text", async ({ roomId, text }) => {
       }),
     });
 
-    const data = await res.json();
+    const rawText = await res.text(); // 🔥 get raw response first
+    console.log("RAW API RESPONSE:", rawText);
 
-    console.log("FULL API RESPONSE:", data);
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      console.log("❌ Invalid JSON response");
+      data = {};
+    }
 
     const translated =
-      data.translatedText ||
+      data?.translatedText ||
       data?.data?.translatedText ||
-      "Translation failed";
+      data?.translation ||
+      text; // 🔥 fallback to original text
 
-    console.log("🌍 Translated:", translated);
+    console.log("🌍 Final Translated:", translated);
 
     io.to(roomId).emit("translated-text", {
       text: translated,
@@ -374,6 +382,11 @@ socket.on("send-text", async ({ roomId, text }) => {
 
   } catch (err) {
     console.error("❌ Translation error:", err);
+
+    // 🔥 fallback
+    io.to(roomId).emit("translated-text", {
+      text,
+    });
   }
 });
 
