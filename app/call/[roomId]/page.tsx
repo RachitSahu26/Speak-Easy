@@ -23,7 +23,7 @@ export default function CallPage() {
   const [peer, setPeer] = useState<PeerUser | null>(null);
   const [roomReadyData, setRoomReadyData] = useState<any>(null);
   const [translatedText, setTranslatedText] = useState("");
-
+const [seconds, setSeconds] = useState(0);
   const socketRef = useRef<Socket | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -252,40 +252,83 @@ export default function CallPage() {
   }, [roomReadyData]);
 
   console.log("STATE:", translatedText);
+useEffect(() => {
+  if (connectionState !== "connected") return;
 
+  const interval = setInterval(() => {
+    setSeconds((prev) => prev + 1);
+  }, 1000);
+
+  return () => clearInterval(interval);
+}, [connectionState]);
   if (!peer) {
     return <div className="text-white text-center p-10">Connecting...</div>;
   }
 
+
+
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f172a] to-[#020617] text-white flex items-center justify-center">
-      <div className="text-center space-y-6">
-        <h1 className="text-3xl font-semibold">{peer.name}</h1>
+  <div className="min-h-screen bg-gradient-to-br from-[#0f172a] to-[#020617] text-white flex flex-col items-center justify-center relative px-4">
 
-        <p className="text-gray-300">
-          {connectionState === "connected" && "🟢 Connected"}
-          {connectionState === "connecting" && "⏳ Connecting..."}
-          {connectionState === "disconnected" && "⚠️ Poor network"}
-          {connectionState === "reconnecting" && "🔄 Reconnecting..."}
-        </p>
-
-        {translatedText && (
-          <p className="text-xl text-green-400 font-semibold mt-4">
-            🌍 {translatedText}
-          </p>
-        )}
-
-        <button
-          onClick={() =>
-            socketRef.current?.emit("end-call", { roomId })
-          }
-          className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-full shadow-lg"
-        >
-          End Call
-        </button>
-
-        <audio ref={remoteAudioRef} autoPlay playsInline />
+    {/* 👤 USER + AVATAR */}
+    <div className="flex flex-col items-center gap-3 mb-6">
+      <div className="w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center text-3xl font-bold">
+        {peer.name[0]}
       </div>
+
+      <h1 className="text-2xl font-semibold">{peer.name}</h1>
+
+      {/* 🎙️ Mic indicator */}
+      <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
     </div>
-  );
+
+    {/* 📶 Connection Status */}
+    <p className="text-gray-400 mb-2">
+      {connectionState === "connected" && "🟢 Connected"}
+      {connectionState === "connecting" && "⏳ Connecting..."}
+      {connectionState === "disconnected" && "⚠️ Poor network"}
+      {connectionState === "reconnecting" && "🔄 Reconnecting..."}
+    </p>
+
+    {/* ⏱️ Call Timer */}
+    <p className="text-sm text-gray-500 mb-4">
+      ⏱ {Math.floor(seconds / 60)}:
+      {String(seconds % 60).padStart(2, "0")}
+    </p>
+
+    {/* 🌐 Language Info */}
+    <p className="text-xs text-gray-500 mb-6">
+      🌐 Hindi → English
+    </p>
+
+    {/* 🎛️ CONTROL BAR */}
+    <div className="flex gap-6 items-center justify-center mb-10">
+      <button className="bg-gray-600 hover:bg-gray-500 p-4 rounded-full text-xl">
+        🎤
+      </button>
+
+      <button
+        onClick={() =>
+          socketRef.current?.emit("end-call", { roomId })
+        }
+        className="bg-red-500 hover:bg-red-600 p-5 rounded-full text-xl shadow-lg"
+      >
+        📞
+      </button>
+
+      <button className="bg-gray-600 hover:bg-gray-500 p-4 rounded-full text-xl">
+        🔊
+      </button>
+    </div>
+
+    {/* 🎬 FLOATING SUBTITLES */}
+    <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-black/70 px-6 py-3 rounded-xl text-white text-lg max-w-xl text-center backdrop-blur shadow-lg">
+      {translatedText || "Listening..."}
+    </div>
+
+    {/* 🔊 AUDIO */}
+    <audio ref={remoteAudioRef} autoPlay playsInline />
+  </div>
+);
 }
