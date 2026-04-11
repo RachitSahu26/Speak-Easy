@@ -23,7 +23,9 @@ export default function CallPage() {
   const [peer, setPeer] = useState<PeerUser | null>(null);
   const [roomReadyData, setRoomReadyData] = useState<any>(null);
   const [translatedText, setTranslatedText] = useState("");
-const [seconds, setSeconds] = useState(0);
+  const [seconds, setSeconds] = useState(0);
+  const [isMicOn, setIsMicOn] = useState(true);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const socketRef = useRef<Socket | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -117,6 +119,7 @@ const [seconds, setSeconds] = useState(0);
       await peerConnectionRef.current?.setRemoteDescription(answer);
     });
 
+
     socket.on("ice-candidate", async (candidate) => {
       const pc = peerConnectionRef.current;
       if (!pc) return;
@@ -180,6 +183,36 @@ const [seconds, setSeconds] = useState(0);
 
     recognition.start();
   }
+
+
+
+const toggleMic = () => {
+  const stream = localStreamRef.current;
+  if (!stream) return;
+
+  const enabled = !isMicOn;
+
+  stream.getAudioTracks().forEach((track) => {
+    track.enabled = enabled;
+  });
+
+  setIsMicOn(enabled);
+};
+
+
+
+
+const toggleSpeaker = () => {
+  if (!remoteAudioRef.current) return;
+
+  const enabled = !isSpeakerOn;
+
+  remoteAudioRef.current.muted = !enabled;
+
+  setIsSpeakerOn(enabled);
+};
+
+
 
   // ☎️ PEER CONNECTION
   function createPeerConnection() {
@@ -252,15 +285,15 @@ const [seconds, setSeconds] = useState(0);
   }, [roomReadyData]);
 
   console.log("STATE:", translatedText);
-useEffect(() => {
-  if (connectionState !== "connected") return;
+  useEffect(() => {
+    if (connectionState !== "connected") return;
 
-  const interval = setInterval(() => {
-    setSeconds((prev) => prev + 1);
-  }, 1000);
+    const interval = setInterval(() => {
+      setSeconds((prev) => prev + 1);
+    }, 1000);
 
-  return () => clearInterval(interval);
-}, [connectionState]);
+    return () => clearInterval(interval);
+  }, [connectionState]);
   if (!peer) {
     return <div className="text-white text-center p-10">Connecting...</div>;
   }
@@ -269,66 +302,79 @@ useEffect(() => {
 
 
   return (
-  <div className="min-h-screen bg-gradient-to-br from-[#0f172a] to-[#020617] text-white flex flex-col items-center justify-center relative px-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#0f172a] to-[#020617] text-white flex flex-col items-center justify-center relative px-4">
 
-    {/* 👤 USER + AVATAR */}
-    <div className="flex flex-col items-center gap-3 mb-6">
-      <div className="w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center text-3xl font-bold">
-        {peer.name[0]}
+      {/* 👤 USER + AVATAR */}
+      <div className="flex flex-col items-center gap-3 mb-6">
+        <div className="w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center text-3xl font-bold">
+          {peer.name[0]}
+        </div>
+
+        <h1 className="text-2xl font-semibold">{peer.name}</h1>
+
+        {/* 🎙️ Mic indicator */}
+        <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
       </div>
 
-      <h1 className="text-2xl font-semibold">{peer.name}</h1>
+      {/* 📶 Connection Status */}
+      <p className="text-gray-400 mb-2">
+        {connectionState === "connected" && "🟢 Connected"}
+        {connectionState === "connecting" && "⏳ Connecting..."}
+        {connectionState === "disconnected" && "⚠️ Poor network"}
+        {connectionState === "reconnecting" && "🔄 Reconnecting..."}
+      </p>
 
-      {/* 🎙️ Mic indicator */}
-      <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+      {/* ⏱️ Call Timer */}
+      <p className="text-sm text-gray-500 mb-4">
+        ⏱ {Math.floor(seconds / 60)}:
+        {String(seconds % 60).padStart(2, "0")}
+      </p>
+
+      {/* 🌐 Language Info */}
+      <p className="text-xs text-gray-500 mb-6">
+        🌐 Hindi → English
+      </p>
+
+      {/* 🎛️ CONTROL BAR */}
+      <div className="flex gap-6 items-center justify-center mb-10">
+
+        {/* 🎤 MIC */}
+        <button
+          onClick={toggleMic}
+          className={`p-4 rounded-full text-xl ${isMicOn ? "bg-gray-600 hover:bg-gray-500" : "bg-red-500"
+            }`}
+        >
+          {isMicOn ? "🎤" : "🔇"}
+        </button>
+
+        {/* 📞 END CALL */}
+        <button
+          onClick={() =>
+            socketRef.current?.emit("end-call", { roomId })
+          }
+          className="bg-red-500 hover:bg-red-600 p-5 rounded-full text-xl shadow-lg"
+        >
+          📞
+        </button>
+
+        {/* 🔊 SPEAKER */}
+        <button
+          onClick={toggleSpeaker}
+          className={`p-4 rounded-full text-xl ${isSpeakerOn ? "bg-gray-600 hover:bg-gray-500" : "bg-red-500"
+            }`}
+        >
+          {isSpeakerOn ? "🔊" : "🔇"}
+        </button>
+
+      </div>
+
+      {/* 🎬 FLOATING SUBTITLES */}
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-black/70 px-6 py-3 rounded-xl text-white text-lg max-w-xl text-center backdrop-blur shadow-lg">
+        {translatedText || "Listening..."}
+      </div>
+
+      {/* 🔊 AUDIO */}
+      <audio ref={remoteAudioRef} autoPlay playsInline />
     </div>
-
-    {/* 📶 Connection Status */}
-    <p className="text-gray-400 mb-2">
-      {connectionState === "connected" && "🟢 Connected"}
-      {connectionState === "connecting" && "⏳ Connecting..."}
-      {connectionState === "disconnected" && "⚠️ Poor network"}
-      {connectionState === "reconnecting" && "🔄 Reconnecting..."}
-    </p>
-
-    {/* ⏱️ Call Timer */}
-    <p className="text-sm text-gray-500 mb-4">
-      ⏱ {Math.floor(seconds / 60)}:
-      {String(seconds % 60).padStart(2, "0")}
-    </p>
-
-    {/* 🌐 Language Info */}
-    <p className="text-xs text-gray-500 mb-6">
-      🌐 Hindi → English
-    </p>
-
-    {/* 🎛️ CONTROL BAR */}
-    <div className="flex gap-6 items-center justify-center mb-10">
-      <button className="bg-gray-600 hover:bg-gray-500 p-4 rounded-full text-xl">
-        🎤
-      </button>
-
-      <button
-        onClick={() =>
-          socketRef.current?.emit("end-call", { roomId })
-        }
-        className="bg-red-500 hover:bg-red-600 p-5 rounded-full text-xl shadow-lg"
-      >
-        📞
-      </button>
-
-      <button className="bg-gray-600 hover:bg-gray-500 p-4 rounded-full text-xl">
-        🔊
-      </button>
-    </div>
-
-    {/* 🎬 FLOATING SUBTITLES */}
-    <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-black/70 px-6 py-3 rounded-xl text-white text-lg max-w-xl text-center backdrop-blur shadow-lg">
-      {translatedText || "Listening..."}
-    </div>
-
-    {/* 🔊 AUDIO */}
-    <audio ref={remoteAudioRef} autoPlay playsInline />
-  </div>
-);
+  );
 }
