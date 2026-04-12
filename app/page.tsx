@@ -57,7 +57,7 @@ export default function Home() {
     if (session) {
       router.push("/find-partner"); // logged in
     } else {
-      router.push("/auth"); // not logged in (change if your route is different)
+      router.push("/sign-in"); // not logged in (change if your route is different)
     }
   };
   if (status === "loading") {
