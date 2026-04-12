@@ -61,13 +61,13 @@ export default function Navbar() {
               {/* Dashboard */}
               <button
                 onClick={() => router.push("/dashboard")}
-                className="group relative"
+                className="group cursor-pointer relative"
               >
                 <LayoutDashboard
                   className={`w-6 h-6 transition 
               ${pathname === "/dashboard"
-                      ? "text-purple-400"
-                      : "text-white/60 group-hover:text-purple-300"
+                      ? "text-cyan-400"
+                      : "text-white/60 group-hover:text-cyan-300"
                     }`}
                 />
               </button>
@@ -75,7 +75,7 @@ export default function Navbar() {
               {/* Friends */}
               <button
                 onClick={() => router.push("/dashboard/friends")}
-                className="group relative"
+                className="group relative cursor-pointer"
               >
                 <Users
                   className={`w-6 h-6 transition 
@@ -91,7 +91,11 @@ export default function Navbar() {
                 className="relative cursor-pointer"
                 onClick={() => router.push("/notifications")}
               >
-                <Bell className="w-6 h-6" />
+                <Bell className={`w-6 h-6 transition 
+              ${pathname.startsWith("/dashboard/friends")
+                    ? "text-cyan-400"
+                    : "text-white/60 group-hover:text-cyan-300"
+                  }`} />
 
                 {count > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-1.5 py-[1px] rounded-full">

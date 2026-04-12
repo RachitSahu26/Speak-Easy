@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-export async function proxy(req: NextRequest) {
+export async function middleware (req: NextRequest) {
   const token = await getToken({ req });
 
   if (!token) {
@@ -17,5 +17,6 @@ export const config = {
     "/dashboard/:path*",
     "/call/:path*",
     "/notifications/:path*",
+    "/find-partner/:path*",
   ],
 };

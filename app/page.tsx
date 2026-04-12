@@ -3,17 +3,33 @@
 import { Globe2, MessageCircleMore, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-
+import { Users, Mic, MessageCircle, Globe } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
 
 const featureItems = [
-  { title: "Instant Matching", icon: Search },
-  { title: "Global Community", icon: Globe2 },
-  { title: "Live Conversations", icon: MessageCircleMore },
-];
+  {
+    title: "Instant Matching",
+    icon: Users,
+  },
+  {
+    title: "Voice & Chat",
+    icon: Mic,
+  },
+  {
+    title: "Feedback",
+    icon: MessageCircle,
+  },
+  {
+    title: "Make Global Friends",
+    icon: Globe,
+  },
+]
 
 const bubbleItems = [
   { initials: "EM", className: "left-[10%] top-[18%]" },
@@ -24,7 +40,26 @@ const bubbleItems = [
 
 export default function Home() {
   const { data: session, status } = useSession();
+  const images = ["/demo1.png", "/demo2.png", "/demo3.png", "/demo4.png", "/demo5.png"];
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const router = useRouter();
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % images.length);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+
+  const handleGetStarted = () => {
+    if (session) {
+      router.push("/find-partner"); // logged in
+    } else {
+      router.push("/auth"); // not logged in (change if your route is different)
+    }
+  };
   if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -59,52 +94,92 @@ export default function Home() {
             SpeakEasy connects you instantly with global peers to practice real conversations.
           </p>
 
-          <button className="rounded-xl bg-blue-600 px-10 py-4 text-lg font-semibold shadow-xl hover:bg-blue-500">
+          <button      onClick={handleGetStarted}   className="rounded-xl cursor-pointer bg-blue-600 px-10 py-4 text-lg font-semibold shadow-xl hover:bg-blue-500">
             Start Talking
           </button>
 
         </section>
 
         {/* ================= PRODUCT PREVIEW ================= */}
-       <section className="relative mx-auto mt-20 max-w-6xl">
+        <section className="relative mx-auto mt-20 max-w-6xl">
 
-  {/* glow background */}
-  <div className="absolute left-1/2 top-10 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-cyan-500/20 blur-[120px]" />
+          {/* glow background */}
+          <div className="absolute left-1/2 top-10 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-cyan-500/20 blur-[120px]" />
 
-  {/* main glass panel */}
-  <div className="relative rounded-[32px] border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-[0_60px_120px_-20px_rgba(0,0,0,0.8)]">
+          {/* main glass panel */}
+          <div className="relative rounded-[32px] border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-[0_60px_120px_-20px_rgba(0,0,0,0.8)]">
 
-    {/* screen */}
-    <div className="relative aspect-video overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800">
+            {/* screen */}
+            <div className="relative aspect-video overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800">
 
-      {/* top fake navbar */}
-      <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-        <div className="h-3 w-3 rounded-full bg-red-400" />
-        <div className="h-3 w-3 rounded-full bg-yellow-400" />
-        <div className="h-3 w-3 rounded-full bg-green-400" />
-      </div>
+              {/* top fake navbar */}
+              <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div className="h-3 w-3 rounded-full bg-yellow-400" />
+                <div className="h-3 w-3 rounded-full bg-green-400" />
+              </div>
 
-      {/* fake content */}
-      <div className="flex h-full items-center justify-center text-blue-200 text-2xl font-semibold">
-        SpeakEasy Dashboard UI
-      </div>
+              {/* fake content */}
+              <div className="relative h-full w-full">
 
-    </div>
+                {/* Image */}
+                <img
+                  src={images[currentIndex]}
+                  alt="demo"
+                  className="h-full w-full object-contain transition-all duration-500"
+                />
 
-    {/* floating cards */}
-    <div className="absolute -left-8 top-10 hidden w-40 rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl lg:block">
-      <p className="text-xs text-white/70">Connected</p>
-      <p className="mt-1 text-lg font-bold">+124 Users</p>
-    </div>
+                {/* Left Button */}
+                <button
+                  onClick={() =>
+                    setCurrentIndex((prev) =>
+                      prev === 0 ? images.length - 1 : prev - 1
+                    )
+                  }
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 px-3 cursor-pointer py-2 rounded-full text-white"
+                >
+                  ◀
+                </button>
 
-    <div className="absolute -right-8 bottom-10 hidden w-40 rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl lg:block">
-      <p className="text-xs text-white/70">Active Calls</p>
-      <p className="mt-1 text-lg font-bold">32</p>
-    </div>
+                {/* Right Button */}
+                <button
+                  onClick={() =>
+                    setCurrentIndex((prev) => (prev + 1) % images.length)
+                  }
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 px-3  cursor-pointer py-2 rounded-full text-white"
+                >
+                  ▶
+                </button>
 
-  </div>
+                {/* Dots */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                  {images.map((_, index) => (
+                    <div
+                      key={index}
+                      className={`h-2 w-2 rounded-full ${index === currentIndex ? "bg-white" : "bg-white/40"
+                        }`}
+                    />
+                  ))}
+                </div>
 
-</section>
+              </div>
+
+            </div>
+
+            {/* floating cards */}
+            <div className="absolute -left-8 top-10 hidden w-40 rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl lg:block">
+              <p className="text-xs text-white/70">Connected</p>
+              <p className="mt-1 text-lg font-bold">+124 Users</p>
+            </div>
+
+            <div className="absolute -right-8 bottom-10 hidden w-40 rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl lg:block">
+              <p className="text-xs text-white/70">Active Calls</p>
+              <p className="mt-1 text-lg font-bold">32</p>
+            </div>
+
+          </div>
+
+        </section>
 
         {/* ================= TRUST LOGOS ================= */}
         <section className="text-center space-y-6">
@@ -130,26 +205,27 @@ export default function Home() {
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
 
-            {[
-              "Instant Matching",
-              "Voice & Video Chat",
-              "AI Feedback",
-              "Make Global Friends",
-            ].map((title) => (
-              <div
-                key={title}
-                className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl transition hover:-translate-y-2 hover:border-blue-400"
-              >
-                <div className="mb-4 h-12 w-12 rounded-xl bg-blue-500/20" />
+            {featureItems.map((feature) => {
+              const Icon = feature.icon;
 
-                <h3 className="font-semibold">{title}</h3>
+              return (
+                <div
+                  key={feature.title}
+                  className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl transition hover:-translate-y-2 hover:border-blue-400"
+                >
+                  {/* ICON */}
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20">
+                    <Icon className="h-6 w-6 text-blue-400" />
+                  </div>
 
-                <p className="mt-2 text-sm text-white/60">
-                  Practice English naturally with real people.
-                </p>
-              </div>
-            ))}
+                  <h3 className="font-semibold">{feature.title}</h3>
 
+                  <p className="mt-2 text-sm text-white/60">
+                    Practice English naturally with real people.
+                  </p>
+                </div>
+              );
+            })}
           </div>
 
         </section>
@@ -160,8 +236,10 @@ export default function Home() {
           <h2 className="text-4xl font-bold">
             Ready to Speak Confidently?
           </h2>
-
-          <button className="rounded-xl bg-gradient-to-r from-blue-500 to-cyan-400 px-10 py-4 font-semibold shadow-xl">
+          <button
+            onClick={handleGetStarted}
+            className="rounded-xl bg-gradient-to-r cursor-pointer from-blue-500 to-cyan-400 px-10 py-4 font-semibold shadow-xl hover:scale-105 transition"
+          >
             Get Started Now
           </button>
 
